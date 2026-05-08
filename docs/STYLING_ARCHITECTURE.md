@@ -34,14 +34,14 @@ and how mentask implements a professional CSS-inspired theme system.
 - **Speed**: Live updates with transient panels
 - **Responsiveness**: Immediate but can feel rushed
 
-## 4. mentask (Our Implementation)
+### 5. The Obsidian Forge (Redesign 2026)
 
-- **Format**: Terminal with Rich library
-- **Styling**: CSS-inspired theme system (themes.py)
-- **Colors**: Full 24-bit color support
-- **Data**: Markdown + semantic segmentation
-- **Speed**: Configurable stream delay (default 10ms)
-- **Responsiveness**: Smooth with proper timing control
+- **Format**: Retro-Futuristic Web Terminal
+- **Styling**: Phosphor-amber palette with CRT scanline effects
+- **Colors**: Deep black (#050505), Amber (#FFB000), Terminal Green (#00FF41)
+- **Data**: Data-dense grid panels with monospaced precision
+- **Special Effects**: CSS-only boot sequence, flickering CRT overlays, grain textures
+- **Responsiveness**: Modular grid-based responsiveness
 
 ---
 

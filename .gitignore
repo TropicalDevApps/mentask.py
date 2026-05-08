@@ -123,3 +123,7 @@ Dockerfile
 README.Docker.md
 compose*.yaml
 docker-compose*.yml
+.agents/
+.claude/
+AGENTS.md
+GEMINI.md
