@@ -1,6 +1,6 @@
 # Security Policy: mentask
 
-This document outlines the security protocols, vulnerability reporting procedures, and the established trust model for **mentask v0.16.4**. As an autonomous agent capable of executing code and shell commands, security and integrity are central to our architectural design.
+This document outlines the security protocols, vulnerability reporting procedures, and the established trust model for **mentask**. As an autonomous agent capable of executing code and shell commands, security and integrity are central to our architectural design.
 
 ## Technical Safeguards
 

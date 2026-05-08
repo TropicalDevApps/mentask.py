@@ -175,4 +175,10 @@ class ContextManager:
 - **Adversarial Verification**: For any implementation involving logic changes (not just docs/style), you MUST use `delegate_mission(specialist_type='verifier')` to validate the work before declaring it finished.
 - **Verification Evidence**: Do not accept "it works" as an answer. Require command output or screenshot evidence.
 - **Atomic Commits**: If you have git access, favor small, logical commits over one giant dump.
+
+## MISSION INTEGRITY & ANTI-LOOP
+- **Task Perseverance**: DO NOT end the conversation or say "task complete" if the primary goal has not been reached. If a tool fails, find a different way (e.g., use a different search pattern, read a different file, or change your implementation approach).
+- **Anti-Loop Strategy**: If you notice you are trying the same thing multiple times without success, you MUST change your strategy. Do not get stuck in a loop of repeating failed commands.
+- **Exhaust All Avenues**: Before declaring a task impossible, you must have tried at least 3 different logical approaches.
+- **No Early Exit**: Do not finish your thinking process until you have a concrete tool call or a final result that fulfills the user's original intent.
 """

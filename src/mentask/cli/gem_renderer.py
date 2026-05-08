@@ -29,10 +29,11 @@ from .prompts import PromptEngine
 from .themes import get_theme
 
 
-# Icon system (reuse from renderer.py)
+# Icon system (updated for Nerd Fonts support)
 class _Icons:
-    def __init__(self):
+    def __init__(self, use_nerdfonts: bool = True):
         self._unicode = True
+        self.use_nerdfonts = use_nerdfonts
         try:
             import sys
 
@@ -43,22 +44,32 @@ class _Icons:
 
     @property
     def brand(self) -> str:
+        if self.use_nerdfonts:
+            return "󱚣"
         return "\u2726" if self._unicode else "*"
 
     @property
     def tool(self) -> str:
+        if self.use_nerdfonts:
+            return "󰓆"
         return "\u26a1" if self._unicode else ">"
 
     @property
     def ok(self) -> str:
+        if self.use_nerdfonts:
+            return "󰄬"
         return "\u2713" if self._unicode else "[OK]"
 
     @property
     def fail(self) -> str:
+        if self.use_nerdfonts:
+            return "󰅖"
         return "\u2717" if self._unicode else "[ERR]"
 
     @property
     def warn(self) -> str:
+        if self.use_nerdfonts:
+            return "󰀦"
         return "\u26a0" if self._unicode else "[!]"
 
     @property
@@ -78,6 +89,7 @@ class _Icons:
         return "\u00b7" if self._unicode else "-"
 
 
+# We'll initialize icons later when we have config
 icons = _Icons()
 
 
@@ -123,6 +135,7 @@ class GemStyleRenderer:
         theme_name: str = "indigo",
         stream_mode: str = "continuous",
         stream_delay: float = 0.015,
+        use_nerdfonts: bool = True,
     ) -> None:
         self.console = console
         self.committed_buffer = []
@@ -134,10 +147,13 @@ class GemStyleRenderer:
         self.stream_mode = stream_mode
         self._label_printed = False
 
+        # Update global icons state
+        icons.use_nerdfonts = use_nerdfonts
+
         self.theme = get_theme(theme_name)
         self._setup_colors()
 
-        self.prompt_engine = PromptEngine(self.theme)
+        self.prompt_engine = PromptEngine(self.theme, use_nerdfonts=use_nerdfonts)
         self.prompt_style = "atomic"
 
         self.artifacts = []
@@ -532,7 +548,7 @@ class GemStyleRenderer:
             self.console.print("\n")
         else:
             self.console.print()
-        self.console.print(header)
+        self.console.print(header, end=" " if is_natural else "\n")
 
     def print_thought(self, text: str) -> None:
         if not text.strip():

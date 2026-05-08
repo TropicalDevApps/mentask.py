@@ -3,7 +3,7 @@
 > **Last Updated:** April 26, 2026
 > **Current Version:** `0.20.0`
 > **Maintainer:** [@julesklord](https://github.com/julesklord)
-> **Status:** Milestone 9 (The Spice Must Flow) IN PROGRESS
+> **Status:**
 
 This document outlines the engineering roadmap for `mentask`, organized into prioritized milestones. The current focus is on **Level 4 Autonomy** through self-evolving tools and deep codebase understanding.
 
@@ -48,7 +48,7 @@ graph TD
 - [x] models.dev Dispatcher Integration.
 - [x] Persistent session history across providers.
 
-## Milestone 9: Level 4 Autonomy ("The Spice Must Flow") (CURRENT)
+## Milestone 9: Level 4 Autonomy ("The Spice Must Flow")
 
 **Theme:** Transition from a static agent to a self-evolving engineering organism.
 

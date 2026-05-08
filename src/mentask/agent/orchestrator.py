@@ -20,6 +20,8 @@ class AgentOrchestrator:
     Now with Proactive Context Snapping and Modular Managers.
     """
 
+    MAX_TURNS = 25  # Prevent infinite loops
+
     def __init__(self, client, tool_registry: ToolRegistry, config: Any = None):
         self.client = client
         self.tools = tool_registry
@@ -122,6 +124,11 @@ class AgentOrchestrator:
 
         while True:
             turn_id += 1
+            if turn_id > self.MAX_TURNS:
+                _logger.warning(f"Maximum turns ({self.MAX_TURNS}) reached. Safety break.")
+                yield {"type": "error", "content": f"Safety limit reached: Maximum turns ({self.MAX_TURNS}) exceeded."}
+                break
+
             self._report_status(f"--- Agent Turn {turn_id} Start ---")
             await self.executor.initialize()
             yield {"status": AgentTurnStatus.THINKING}
@@ -148,9 +155,36 @@ class AgentOrchestrator:
                 break
 
             if not assistant_msg.tool_calls:
+                # If there was an error in the previous turn and now there are no tool calls,
+                # we should check if the agent is just giving up.
+                last_msgs = [m for m in history[-3:] if m.role == Role.TOOL]
+                if last_msgs and any("Error" in m.content for m in last_msgs):
+                    _logger.warning("Agent finished without tool calls after a tool error.")
+
                 self.active_status = AgentTurnStatus.COMPLETED
                 yield {"status": AgentTurnStatus.COMPLETED}
                 break
+
+            # Redundancy detection: check if the same tool calls with same args are being repeated
+            current_calls = [(tc.name, tc.args) for tc in assistant_msg.tool_calls]
+            previous_calls = []
+            for m in reversed(history[:-1]):
+                if m.role == Role.ASSISTANT and m.tool_calls:
+                    previous_calls = [(tc.name, tc.args) for tc in m.tool_calls]
+                    break
+            
+            if current_calls == previous_calls:
+                _logger.warning("Redundant tool calls detected. Forcing critique.")
+                critique_prompt = (
+                    "SYSTEM ALERT: You are repeating the exact same tool calls as the previous turn. "
+                    "This indicates you are stuck in a loop. STOP and rethink your strategy.\n"
+                    "1. Why did the previous call not achieve the desired state?\n"
+                    "2. What different approach can you take?\n"
+                    "DO NOT repeat the same failed command again."
+                )
+                history.append(Message(role=Role.SYSTEM, content=critique_prompt))
+                yield {"status": AgentTurnStatus.THINKING}
+                continue
 
             self.active_status = AgentTurnStatus.EXECUTING
             yield {"status": AgentTurnStatus.EXECUTING, "tool_calls": assistant_msg.tool_calls}

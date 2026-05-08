@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.0] - 2026-05-08
+
+### Added
+- **UI Enhancements**: 
+  - Introduced `powerline` and `rainbow` prompt styles with Nerd Fonts support.
+  - Added rich system context to the user prompt, including OS icon, Git branch/status, Python virtual environment, and active Model badge.
+  - Added new themes: `neon_ghost` and `monochrome_pro`.
+- **Visual Polish**: Adjusted the agent response layout to render the header inline with the message text, creating a cleaner, chat-like visual hierarchy.
+
 ## [0.23.3] - 2026-05-08
 
 ### Fixed

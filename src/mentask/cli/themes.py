@@ -81,6 +81,14 @@ class ThemeConfig:
     think_color: str
     code_theme: str
 
+    # Status Indicators (New)
+    git_branch: str = "#818cf8"
+    git_dirty: str = "#fbbf24"
+    git_clean: str = "#4ade80"
+    python_venv: str = "#34d399"
+    model_badge: str = "#a78bfa"
+    cost_badge: str = "#fbbf24"
+
     def get_style(self, element: str) -> Style:
         """Get style for a specific element."""
         styles = {
@@ -123,6 +131,8 @@ THEMES = {
         background="#0f172a",
         think_color="#64748b",
         code_theme="monokai",
+        git_branch="#818cf8",
+        python_venv="#34d399",
     ),
     "emerald": ThemeConfig(
         brand_primary="#34d399",
@@ -138,6 +148,8 @@ THEMES = {
         background="#051f15",
         think_color="#4b5563",
         code_theme="monokai",
+        git_branch="#34d399",
+        python_venv="#10b981",
     ),
     "cyberpunk": ThemeConfig(
         brand_primary="#f0abfc",
@@ -153,6 +165,8 @@ THEMES = {
         background="#0c0a0e",
         think_color="#4c1d95",
         code_theme="monokai",
+        git_branch="#f0abfc",
+        python_venv="#2dd4bf",
     ),
     "dracula": ThemeConfig(
         brand_primary="#bd93f9",
@@ -168,6 +182,8 @@ THEMES = {
         background="#282a36",
         think_color="#6272a4",
         code_theme="monokai",
+        git_branch="#bd93f9",
+        python_venv="#50fa7b",
     ),
     "nord": ThemeConfig(
         brand_primary="#88c0d0",
@@ -183,6 +199,8 @@ THEMES = {
         background="#2e3440",
         think_color="#4c566a",
         code_theme="nord",
+        git_branch="#88c0d0",
+        python_venv="#a3be8c",
     ),
     "sakura": ThemeConfig(
         brand_primary="#fda4af",
@@ -198,6 +216,8 @@ THEMES = {
         background="#4c0519",
         think_color="#9f1239",
         code_theme="monokai",
+        git_branch="#fda4af",
+        python_venv="#34d399",
     ),
     "neon_pink": ThemeConfig(
         brand_primary="#ff006e",
@@ -213,6 +233,8 @@ THEMES = {
         background="#0a0e27",
         think_color="#ff006e",
         code_theme="monokai",
+        git_branch="#ff006e",
+        python_venv="#00ff00",
     ),
     "neon_cyan": ThemeConfig(
         brand_primary="#00d9ff",
@@ -228,6 +250,8 @@ THEMES = {
         background="#0a0e27",
         think_color="#00d9ff",
         code_theme="monokai",
+        git_branch="#00d9ff",
+        python_venv="#00ff00",
     ),
     "neon_purple": ThemeConfig(
         brand_primary="#b537f2",
@@ -243,6 +267,8 @@ THEMES = {
         background="#0a0e27",
         think_color="#b537f2",
         code_theme="monokai",
+        git_branch="#b537f2",
+        python_venv="#39ff14",
     ),
     "neon_matrix": ThemeConfig(
         brand_primary="#00ff00",
@@ -258,6 +284,43 @@ THEMES = {
         background="#000000",
         think_color="#00aa00",
         code_theme="monokai",
+        git_branch="#00ff00",
+        python_venv="#00aa00",
+    ),
+    "neon_ghost": ThemeConfig(
+        brand_primary="#ffffff",
+        brand_secondary="#94a3b8",
+        success="#22c55e",
+        warning="#eab308",
+        error="#ef4444",
+        info="#3b82f6",
+        text_primary="#f8fafc",
+        text_secondary="#94a3b8",
+        text_dim="#475569",
+        border="#ffffff",
+        background="#000000",
+        think_color="#475569",
+        code_theme="monokai",
+        git_branch="#ffffff",
+        python_venv="#22c55e",
+        model_badge="#3b82f6",
+    ),
+    "monochrome_pro": ThemeConfig(
+        brand_primary="#ffffff",
+        brand_secondary="#cccccc",
+        success="#ffffff",
+        warning="#cccccc",
+        error="#666666",
+        info="#ffffff",
+        text_primary="#ffffff",
+        text_secondary="#999999",
+        text_dim="#444444",
+        border="#333333",
+        background="#000000",
+        think_color="#333333",
+        code_theme="monokai",
+        git_branch="#ffffff",
+        python_venv="#ffffff",
     ),
 }
 

@@ -127,3 +127,5 @@ docker-compose*.yml
 .claude/
 AGENTS.md
 GEMINI.md
+PALETTE.MD
+CONTEXTUAL_GUIDE.md

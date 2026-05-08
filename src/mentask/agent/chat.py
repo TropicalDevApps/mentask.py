@@ -657,7 +657,10 @@ class ChatAgent:
 
         current_theme = self.config.settings.get("theme", "indigo")
         stream_delay = self.config.settings.get("stream_delay", 0.015)
-        renderer = GemStyleRenderer(console, theme_name=current_theme, stream_delay=stream_delay)
+        nf_enabled = self.config.settings.get("nerdfonts_enabled", True)
+        renderer = GemStyleRenderer(
+            console, theme_name=current_theme, stream_delay=stream_delay, use_nerdfonts=nf_enabled
+        )
         self.active_renderer = renderer
         self.set_status_logger(renderer.print_status)
 
@@ -734,7 +737,9 @@ class ChatAgent:
                     self.metrics.total_prompt_tokens, self.metrics.total_candidate_tokens
                 )
 
-                user_prompt_rich = renderer.prompt_engine.build_user_prompt(style, os.getcwd(), is_trusted, cost)
+                user_prompt_rich = renderer.prompt_engine.build_user_prompt(
+                    style, os.getcwd(), is_trusted, cost, model_id=self.model_name
+                )
 
                 if HAS_PT and session and patch_stdout:
                     from prompt_toolkit.formatted_text import ANSI
