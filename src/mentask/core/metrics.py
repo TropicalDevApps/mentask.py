@@ -108,19 +108,30 @@ class TokenTracker:
         """Returns the estimated cost in USD."""
         from .models_hub import hub
 
+        # Try to get pricing from Hub
         pricing = hub.get_pricing(self.model_name)
+        model_exists = hub.get_model(self.model_name) is not None
 
-        # Fallback to static PRICING_MAP if hub returns 0.0 (e.g. sync failed or model missing)
-        if pricing["input"] == 0.0 and pricing["output"] == 0.0:
+        # Fallback to static PRICING_MAP only if model is NOT in Hub
+        # (If it is in Hub but cost is 0, it might be a free model)
+        if not model_exists and pricing["input"] == 0.0 and pricing["output"] == 0.0:
             base_model = self.model_name.split("/")[-1] if "/" in self.model_name else self.model_name
-            static_pricing = next(
-                (p for name, p in PRICING_MAP.items() if name in base_model), PRICING_MAP["gemini-2.0-flash"]
-            )
-            pricing = {"input": static_pricing.input_1m, "output": static_pricing.output_1m}
+            # Try to match any part of the name
+            static_pricing = None
+            for name, p in PRICING_MAP.items():
+                if name in base_model.lower():
+                    static_pricing = p
+                    break
+
+            if static_pricing:
+                pricing = {"input": static_pricing.input_1m, "output": static_pricing.output_1m}
+            else:
+                # Last resort fallback
+                pricing = {"input": 0.1, "output": 0.4}  # Generic flash-tier pricing
 
         input_cost = (prompt / 1_000_000) * pricing["input"]
         output_cost = (candidate / 1_000_000) * pricing["output"]
-        return input_cost + output_cost
+        return float(input_cost + output_cost)
 
     def get_summary(self) -> str:
         """Returns a formatted summary for the TUI."""

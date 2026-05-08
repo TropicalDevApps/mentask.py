@@ -21,6 +21,11 @@ def _parse_args():
     )
     parser.add_argument("--version", action="version", version=f"mentask {__version__}")
     parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Run in local-only mode (optimizes for Ollama, disables cloud APIs).",
+    )
+    parser.add_argument(
         "--list",
         choices=["db", "home", "sessions", "changelog", "spend", "all"],
         help="Display agent internal information and stats.",
@@ -38,7 +43,7 @@ async def _run_async_chatbot(args):
     """Encapsulated async run for better cleanup."""
     from ..agent.chat import ChatAgent
 
-    agent = ChatAgent(session_id=args.session_id)
+    agent = ChatAgent(session_id=args.session_id, local_mode=args.local)
     loop = asyncio.get_running_loop()
     try:
         await agent.start()

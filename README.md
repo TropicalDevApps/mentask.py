@@ -29,6 +29,14 @@ mentask is designed to run locally with a minimal footprint. No cloud nonsense, 
 - **System:** Standard OS commands available (`bash` on UNIX, `pwsh` on Windows)
 - **RAM:** 4GB minimum, 8GB recommended (for the agent's working memory and token buffer)
 
+---
+
+<p align="center">
+  <img src="docs/assets/shot.png" width="700" alt="mentask logo">
+</p>
+
+---
+
 ### Setup (Recommended Path)
 
 Clone and install in a virtual environment for isolation:

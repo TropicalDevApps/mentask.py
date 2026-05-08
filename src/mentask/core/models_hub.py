@@ -16,13 +16,14 @@ CACHE_TTL = 21600  # 6 hours in seconds (fresher data)
 
 class ModelsHub:
     """
-    Central registry for AI models, powered by models.dev.
+    Central registry for AI models, powered by models.dev and local discovery (Ollama).
     Provides dynamic pricing, context limits, and capability information.
     """
 
     _instance = None
     _data_store: dict[str, Any] = {}
     _flat_models: dict[str, Any] = {}
+    _local_models: dict[str, Any] = {}
     _last_sync: float = 0
 
     @property
@@ -59,6 +60,7 @@ class ModelsHub:
                     cache_data = json.load(f)
                     self._data = cache_data.get("models_data", {})
                     self._last_sync = cache_data.get("last_sync", 0)
+                    # We don't cache local discovery as it changes often
                     self._rebuild_index()
             except Exception as e:
                 _logger.warning(f"Failed to load models cache: {e}")
@@ -78,24 +80,89 @@ class ModelsHub:
 
     def _rebuild_index(self):
         self._flat_models.clear()
-        if not hasattr(self, "_data") or not self._data:
-            return
-        for p_id, p_info in self._data.items():
-            if not isinstance(p_info, dict):
-                continue
-            for m_id, m_info in p_info.get("models", {}).items():
-                self._flat_models[m_id] = m_info
-                self._flat_models[f"{p_info.get('id', p_id)}:{m_id}"] = m_info
 
-    def sync(self, force: bool = False):
+        # 1. Add cloud models from models.dev
+        if hasattr(self, "_data") and self._data:
+            for p_id, p_info in self._data.items():
+                if not isinstance(p_info, dict):
+                    continue
+
+                provider_meta = {
+                    "id": p_id,
+                    "name": p_info.get("name", p_id),
+                    "api": p_info.get("api"),
+                    "env": p_info.get("env", []),
+                }
+
+                models = p_info.get("models", {})
+                if not isinstance(models, dict):
+                    continue
+
+                for m_id, m_info in models.items():
+                    if not isinstance(m_info, dict):
+                        continue
+
+                    # Enrich model info with provider metadata
+                    m_info["_provider"] = provider_meta
+
+                    # Index by pure model ID
+                    self._flat_models[m_id] = m_info
+                    # Index by scoped ID (provider:model)
+                    self._flat_models[f"{p_id}:{m_id}"] = m_info
+
+        # 2. Add local models (discovered via Ollama)
+        for m_id, m_info in self._local_models.items():
+            self._flat_models[m_id] = m_info
+            self._flat_models[f"ollama:{m_id}"] = m_info
+
+    def sync_local(self, endpoint: str = "http://localhost:11434/api/tags"):
+        """Discovers models from a local Ollama instance."""
+        _logger.debug(f"Syncing local models from {endpoint}...")
+        try:
+            req = urllib.request.Request(endpoint)
+            with urllib.request.urlopen(req, timeout=2) as response:
+                data = json.load(response)
+                models = data.get("models", [])
+
+                new_local = {}
+                for m in models:
+                    name = m.get("name")
+                    if not name:
+                        continue
+
+                    # Create a minimalist model info for the hub
+                    new_local[name] = {
+                        "id": name,
+                        "name": f"{name} (Local)",
+                        "cost": {"input": 0, "output": 0},
+                        "limit": {"context": 32768, "output": 4096},  # Conservative defaults
+                        "_provider": {
+                            "id": "ollama",
+                            "name": "Ollama (Local)",
+                            "api": endpoint.replace("/api/tags", "/v1"),
+                            "env": [],
+                        },
+                    }
+
+                self._local_models = new_local
+                self._rebuild_index()
+                _logger.info(f"Discovered {len(new_local)} local Ollama models.")
+        except Exception as e:
+            # Silent fail for local discovery (e.g. Ollama not running)
+            _logger.debug(f"Local Ollama sync skipped: {e}")
+
+    def sync(self, force: bool = False, skip_local: bool = False):
         """
-        Synchronizes model data with models.dev.
+        Synchronizes model data with models.dev and local providers.
 
         Args:
             force: If True, bypasses TTL check.
+            skip_local: If True, bypasses Ollama discovery.
         """
         now = time.time()
         if not force and (now - self._last_sync) < CACHE_TTL:
+            if not skip_local:
+                self.sync_local()
             return
 
         _logger.info("Syncing models data from models.dev...")
@@ -113,6 +180,9 @@ class ModelsHub:
             _logger.error(f"Failed to sync models from models.dev: {e}")
             if not self._data:
                 _logger.warning("No model data available (sync failed and no cache).")
+
+        if not skip_local:
+            self.sync_local()
 
     def get_model(self, model_id: str) -> dict[str, Any] | None:
         """
@@ -161,6 +231,13 @@ class ModelsHub:
                 results.append(m_info)
 
         return results
+
+    def get_provider_for_model(self, model_id: str) -> dict[str, Any] | None:
+        """Returns provider metadata for a given model ID."""
+        model_info = self.get_model(model_id)
+        if model_info:
+            return model_info.get("_provider")
+        return None
 
     def get_pricing(self, model_id: str) -> dict[str, float]:
         """

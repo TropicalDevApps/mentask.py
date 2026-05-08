@@ -82,18 +82,34 @@ class ChatAgent:
         ui_adapter: Any | None = None,
         dependencies: ChatAgentDependencies | None = None,
         session_id: str | None = None,
+        local_mode: bool = False,
     ):
         """Initializes the chat agent and its specialized managers."""
         self.running = False
         self.requested_session_id = session_id  # Requested session ID (None = new)
+        self.local_mode = local_mode
         deps = dependencies or ChatAgentDependencies.create_default()
         self.config = deps.config
         self.history = deps.history
         self.identity = deps.identity
 
         self.model_name = self.config.settings.get("model_name", "gemini-2.5-flash-lite")
+
+        # In local mode, force a local model if not provided
+        if self.local_mode and not any(x in self.model_name.lower() for x in ["ollama", "local", "lms"]):
+            self.model_name = "ollama:llama3"
+
         self.edit_mode = self.config.settings.get("edit_mode", "manual")
         self.session = deps.session or SessionManager(self.config, self.model_name)
+
+        # Security: If local_mode is active, ensure we didn't accidentally pick a cloud provider
+        if self.local_mode:
+            from .core.providers.ollama import OllamaProvider
+
+            if not isinstance(self.session.provider, OllamaProvider):
+                # We can't easily await here in init, but we set the name so start() works correctly
+                self.model_name = "ollama:llama3"
+
         self.session.metrics = getattr(self.session, "metrics", None) or TokenTracker(model_name=self.model_name)
         self.metrics = self.session.metrics
         self.context = deps.context
@@ -120,6 +136,14 @@ class ChatAgent:
 
         # Autocompletion
         self._completer = None
+
+    def _verify_model_for_mode(self, model_name: str) -> bool:
+        """Ensures the selected model is allowed in the current mode."""
+        if not self.local_mode:
+            return True
+
+        is_local = any(x in model_name.lower() for x in ["ollama", "local", "lms", "127.0.0.1", "localhost"])
+        return is_local
 
     def _setup_system_prompt(self):
         """Injects the core identity, knowledge index, project context, and behavioral rules."""
@@ -441,8 +465,18 @@ class ChatAgent:
         result = await self.commands.execute(user_input)
         renderer.print_command_output(result)
 
-        # After a command, refresh autocompletion in case provider/model changed
         if cmd in ("/model", "/auth"):
+            # Check if model is allowed in current mode
+            if cmd == "/model":
+                parts = user_input.split()
+                if len(parts) > 1:
+                    target_model = parts[1]
+                    if not self._verify_model_for_mode(target_model):
+                        renderer.print_error(
+                            f"Cannot switch to '{target_model}' in LOCAL MODE. Only local models are allowed."
+                        )
+                        return True
+
             await self._update_completer()
 
         return True
@@ -653,6 +687,26 @@ class ChatAgent:
                     renderer.expand_artifact(-1)
 
             # Initialize completer with dynamic data
+            # In local mode, we sync local models once at start
+            if self.local_mode:
+                from ..core.models_hub import hub
+
+                hub.sync_local()
+                if not hub._local_models:
+                    renderer.console.print("\n  [bold yellow]󰚌 OLLAMA NOT DETECTED[/bold yellow]")
+                    renderer.console.print(
+                        "  Local mode is active but no Ollama models were found at http://localhost:11434."
+                    )
+                    renderer.console.print("\n  [bold]How to fix this:[/bold]")
+                    renderer.console.print("  1. [cyan]Install Ollama:[/] Download from https://ollama.com")
+                    renderer.console.print("  2. [cyan]Start the server:[/] Run 'ollama serve' or open the app")
+                    renderer.console.print(
+                        "  3. [cyan]Pull a model:[/] Run 'ollama pull llama3' (or your preferred model)"
+                    )
+                    renderer.console.print(
+                        "\n  [dim]MentAsk will try to reconnect automatically when you switch models.[/dim]\n"
+                    )
+
             await self._update_completer()
 
             session = PromptSession(key_bindings=kb, completer=self._completer)

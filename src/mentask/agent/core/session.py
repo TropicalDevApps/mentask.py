@@ -51,6 +51,10 @@ class SessionManager:
         self.model_name = new_model_name
         self.provider = get_provider(new_model_name, self.config)
 
+        # Update metrics to use the new model's pricing
+        if hasattr(self, "metrics") and self.metrics:
+            self.metrics.model_name = new_model_name
+
         from ...core.compression import ContextSnapper
 
         limit = ContextSnapper(new_model_name).limit

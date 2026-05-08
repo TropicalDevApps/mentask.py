@@ -117,9 +117,11 @@ class PromptEngine:
             )
         )
         # 3. Cost
-        segments.append(
-            PromptSegment(f"${cost:.3f}", "white", self.theme.border, icon="󰠠" if self.use_nerdfonts else "$")
-        )
+        cost_str = f"${cost:.3f}" if cost >= 0.01 else f"${cost:.4f}"
+        if cost == 0:
+            cost_str = "$0.000"
+
+        segments.append(PromptSegment(cost_str, "white", self.theme.border, icon="󰠠" if self.use_nerdfonts else "$"))
 
         renderer = self.STYLES.get(style_name, self._render_atomic)
         return renderer(segments)

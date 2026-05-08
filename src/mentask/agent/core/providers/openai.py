@@ -28,39 +28,41 @@ class OpenAIProvider(BaseProvider):
         from ....core.models_hub import hub
         from ....tools.web_tools import is_safe_url
 
-        # 1. Try to find model info in the Hub
+        # 1. Try to find model and provider info in the Hub
         info = hub.get_model(self.model_name)
-        provider_id = None
+        provider_meta = hub.get_provider_for_model(self.model_name)
 
-        if info:
-            # We assume the model ID might have a preferred provider or we pick the first one
-            # Models.dev doesn't directly link model to provider endpoint in a simple way
-            # unless we search the providers list.
+        provider_id = "openai"  # Default
 
-            # For now, let's look at the providers listed in the Hub data
-            providers = hub._data.get("providers", {})
+        if provider_meta:
+            provider_id = provider_meta["id"]
+            candidate_endpoint = provider_meta.get("api")
 
-            # If the model ID is scoped (provider:model), we use that provider
-            if ":" in self.model_name:
-                provider_id = self.model_name.split(":")[0]
-
-            if provider_id and provider_id in providers:
-                p_info = providers[provider_id]
-                candidate_endpoint = p_info.get("endpoint")
-
-                if candidate_endpoint:
-                    if candidate_endpoint.startswith("https://") and is_safe_url(candidate_endpoint):
-                        self.api_base = candidate_endpoint
-                        _logger.info(f"Resolved endpoint for {provider_id}: {self.api_base}")
-                    else:
-                        _logger.warning(
-                            f"Rejected unsafe or non-HTTPS endpoint for {provider_id}: {candidate_endpoint}"
-                        )
+            if candidate_endpoint:
+                if candidate_endpoint.startswith("https://") and is_safe_url(candidate_endpoint):
+                    self.api_base = candidate_endpoint
+                    _logger.info(f"Resolved endpoint for {provider_id}: {self.api_base}")
+                else:
+                    _logger.warning(f"Rejected unsafe or non-HTTPS endpoint for {provider_id}: {candidate_endpoint}")
 
         # 2. Resolve API Key
         # Priority: Specific provider key via ConfigManager > Generic fallback
-        active_id = provider_id or "openai"
-        res = self.config.load_api_key(active_id, return_source=True)
+        # Check env variables suggested by models.dev
+        env_vars = provider_meta.get("env", []) if provider_meta else []
+
+        # Try specific provider ID first
+        res = self.config.load_api_key(provider_id, return_source=True)
+
+        # If not found, try the suggested env names from models.dev
+        if not res and env_vars:
+            for env_name in env_vars:
+                # We normalize env names (e.g. DEEPSEEK_API_KEY -> deepseek) to check config
+                normalized = env_name.replace("_API_KEY", "").lower()
+                res = self.config.load_api_key(normalized, return_source=True)
+                if res:
+                    provider_id = normalized
+                    break
+
         if isinstance(res, tuple) and len(res) == 2:
             self.api_key, self.key_source = res
         elif res:
@@ -69,7 +71,7 @@ class OpenAIProvider(BaseProvider):
         else:
             self.api_key, self.key_source = None, None
 
-        if not self.api_key and active_id != "openai":
+        if not self.api_key and provider_id != "openai":
             # Fallback to generic openai key if specific one is missing
             res2 = self.config.load_api_key("openai", return_source=True)
             if isinstance(res2, tuple) and len(res2) == 2:
@@ -81,7 +83,7 @@ class OpenAIProvider(BaseProvider):
                 self.api_key, self.key_source = None, None
 
         if not self.api_key:
-            _logger.warning(f"No API key found for {self.model_name} (provider: {active_id})")
+            _logger.warning(f"No API key found for {self.model_name} (provider: {provider_id})")
             return False
 
         return True

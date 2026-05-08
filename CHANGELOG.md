@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.23.2] - 2026-05-08
+
+### Added
+- **Native Ollama Support**: Introduced a dedicated `OllamaProvider` for seamless interaction with local models.
+- **Local Mode**: New `--local` CLI flag that enforces a strict "no-cloud" policy, disabling external API calls for maximum privacy.
+- **Ollama Auto-Sync**: Automatic discovery of local Ollama models at startup, with dynamic integration into the `/model` autocompletion.
+- **Installation Guide**: Integrated an interactive setup guide for Ollama that triggers when no local models are detected in local mode.
+- **High-Precision Cost Tracking**: Enhanced token cost estimation with 4-decimal precision for low-cost models and accurate handling of free/local models.
+
+### Fixed
+- **models.dev Integration**: Refactored `ModelsHub` and `OpenAIProvider` for robust endpoint and API key resolution using models.dev metadata.
+- **Session Stability**: Fixed `TokenTracker` pricing update when switching models mid-session.
+- **Environment**: Resolved `.venv` corruption issues caused by zombie `ruff` processes during environment recreation.
+
 ## [0.23.1] - 2026-05-06
 
 ### Added

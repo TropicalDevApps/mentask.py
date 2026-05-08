@@ -4,6 +4,7 @@ from mentask.core.models_hub import hub
 
 from .base import BaseProvider
 from .gemini import GeminiProvider
+from .ollama import OllamaProvider
 from .openai import OpenAIProvider
 
 
@@ -20,7 +21,11 @@ def get_provider(model_name: str, config: Any) -> BaseProvider:
         provider_prefix, pure_model_name = model_name.split(":", 1)
         provider_prefix = provider_prefix.lower()
 
-    # 2. Consult models.dev Hub for metadata
+    # 2. Local/Specialized detect logic
+    if provider_prefix == "ollama" or "ollama" in pure_model_name.lower():
+        return OllamaProvider(model_name, config)
+
+    # 3. Consult models.dev Hub for metadata
     info = hub.get_model(model_name)
     resolved_provider = info.get("_provider", "").lower() if info else None
 
