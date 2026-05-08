@@ -58,7 +58,7 @@
                             </div>
                         </div>
                         <div class="term-body" id="terminal">
-                            <!-- Boot sequence will be injected here -->
+                            <!-- Progressive session simulation -->
                         </div>
                     </div>
                 </div>
@@ -198,24 +198,75 @@
 
     <script>
         const lines = [
-            { text: '>> INITIALIZING MENTASK_CORE...', delay: 0 },
-            { text: '>> LOADING ASSETS... OK', delay: 400 },
-            { text: '>> CONNECTING TO MAINFRAME...', delay: 300 },
-            { text: '>> ACCESS GRANTED.', cls: 'c-green', delay: 200 },
+            { text: '/home/jules_dev/mentask.py [git::main *] [jules_dev@ESTUDIO] [2:14]', cls: 'c-dim', delay: 0 },
+            { text: '> ./.venv/bin/mentask', cls: 'c-bold', delay: 300 },
+            { text: '> Engine: Gemini | Source: Keyring/Settings', cls: 'c-dim', delay: 100 },
             { text: '', delay: 100 },
-            { text: '✦ mentask v0.20.1 // gemini-2.5-pro // obsidian mode', cls: 'c-bold', delay: 400 },
+            { text: '  ✦ mentask  v0.20.1  ·  gemini-2.5-pro  ·  manual mode', cls: 'c-bold', delay: 400 },
+            { text: '  Type /help for commands · Ctrl+O to expand last result · Ctrl+C to exit', cls: 'c-dim', delay: 100 },
             { text: '', delay: 100 },
-            { text: '[SYSTEM] Waiting for command input...', cls: 'c-dim', delay: 600 },
-            { text: '> /trust .', delay: 800 },
-            { text: '✓ Directory added to trusted list.', cls: 'c-green', delay: 400 },
-            { text: '> analyze_codebase --deep', delay: 800 },
-            { text: '· Analyzing architecture...', cls: 'c-dim', delay: 400 },
-            { text: '· Found 42 modules, 12 forged plugins.', cls: 'c-dim', delay: 300 },
-            { text: '· Linter: RUFF active.', cls: 'c-dim', delay: 200 },
             { text: '', delay: 100 },
-            { text: '[REPORT] System is healthy. Spice is flowing.', cls: 'c-yellow', delay: 500 },
+            { text: '  ⚠️ UNTRUSTED DIRECTORY', cls: 'c-red', delay: 600 },
+            { text: '  The directory /home/jules_dev/mentask.py is not trusted.', cls: '', delay: 50 },
+            { text: '  Trusting allows the agent to execute tools without excessive confirmations.', cls: '', delay: 50 },
+            { text: '', delay: 50 },
+            { text: '  Trust this directory? (permanent, session, no) : permanent', cls: '', delay: 800 },
+            { text: '  Directory remains untrusted.', cls: '', delay: 200 },
             { text: '', delay: 100 },
-            { text: '> _', delay: 1000 },
+            { text: '', delay: 100 },
+            { text: '  ⚠️ Warning:  New session: 2eca562a', cls: 'c-yellow', delay: 300 },
+            { html: '<span class="pl"><span class="pl-seg pl-red">⚠️ UNTRUSTED</span><span class="pl-arr"></span><span class="pl-seg pl-dark">📂 mentask.py</span><span class="pl-arr"></span><span class="pl-seg pl-dark">💰 $0.000</span><span class="pl-end"></span></span> <span class="c-bold">/trust</span>', delay: 600 },
+            { text: '✓ Directory added to trusted list: /home/jules_dev/mentask.py', cls: 'c-green', delay: 400 },
+            { text: 'Tools will now execute automatically in this folder.', cls: '', delay: 200 },
+            { html: '<span class="pl"><span class="pl-seg pl-green">✅ TRUSTED</span><span class="pl-arr"></span><span class="pl-seg pl-dark">📂 mentask.py</span><span class="pl-arr"></span><span class="pl-seg pl-dark">💰 $0.000</span><span class="pl-end"></span></span> <span class="c-bold">who are you</span>', delay: 800 },
+            { text: '', delay: 100 },
+            { text: '', delay: 100 },
+            { html: '<span class="pl"><span class="pl-seg pl-blue">✦ mentask</span><span class="pl-arr"></span><span class="pl-seg pl-dark">⏱️ 02:15</span><span class="pl-arr"></span><span class="pl-seg pl-dark">💬 MESSAGE</span><span class="pl-end"></span></span>', delay: 400 },
+            { text: 'I am mentask, a professional autonomous coding agent. I can help you with your coding tasks.', cls: '', delay: 50 },
+            { text: '  ── gemini-2.5-pro · 5,108 tokens · 02:15:16 ──', cls: 'c-dim', delay: 300 },
+            { text: '', delay: 100 },
+            { html: '<span class="pl"><span class="pl-seg pl-green">✅ TRUSTED</span><span class="pl-arr"></span><span class="pl-seg pl-dark">📂 mentask.py</span><span class="pl-arr"></span><span class="pl-seg pl-dark">💰 $0.007</span><span class="pl-end"></span></span> <span class="c-bold">show me the diffs of this project</span>', delay: 800 },
+            { text: '', delay: 100 },
+            { text: '', delay: 100 },
+            { html: '<span class="pl"><span class="pl-seg pl-blue">✦ mentask</span><span class="pl-arr"></span><span class="pl-seg pl-dark">⏱️ 02:15</span><span class="pl-arr"></span><span class="pl-seg pl-dark">💬 MESSAGE</span><span class="pl-end"></span></span>', delay: 400 },
+            { text: 'I will analyze the codebase to see the differences.', cls: '', delay: 50 },
+            { text: '', delay: 100 },
+            { html: '<span class="pl"><span class="pl-seg pl-blue">✦ mentask</span><span class="pl-arr"></span><span class="pl-seg pl-dark">⏱️ 02:15</span><span class="pl-arr"></span><span class="pl-seg pl-dark">🛠️ analyze_codebase</span><span class="pl-end"></span></span>', delay: 400 },
+            { text: '  ⚡ analyze_codebase  mode=stat', cls: 'c-dim', delay: 100 },
+            { text: '  · Executing 1 tools...', cls: 'c-dim', delay: 400 },
+            { text: '  ✓ analyze_codebase (#1)', cls: 'c-green', delay: 200 },
+            { text: '╭─────────────────────────────────────────────────────────────────────────────╮', cls: 'c-dim', delay: 100 },
+            { text: '│  --- GIT DIFF STAT (HEAD) ---                                               │', cls: 'c-dim', delay: 50 },
+            { text: '│   docs/index.html | 265 +++++++++++++++++++++++++++-----------------------  │', cls: 'c-dim', delay: 50 },
+            { text: '│   1 file changed, 138 insertions(+), 127 deletions(-)                       │', cls: 'c-dim', delay: 50 },
+            { text: '╰─────────────────────────────────────────────────────────────────────────────╯', cls: 'c-dim', delay: 100 },
+            { text: '', delay: 100 },
+            { text: 'Okay, I\'ve got the stats. Now, I\'ll fetch and display the full diff.', cls: '', delay: 50 },
+            { text: '', delay: 100 },
+            { html: '<span class="pl"><span class="pl-seg pl-blue">✦ mentask</span><span class="pl-arr"></span><span class="pl-seg pl-dark">⏱️ 02:15</span><span class="pl-arr"></span><span class="pl-seg pl-dark">🛠️ execute_command</span><span class="pl-end"></span></span>', delay: 400 },
+            { text: '  ⚡ execute_command  command=git diff', cls: 'c-dim', delay: 100 },
+            { text: '  · Executing 1 tools...', cls: 'c-dim', delay: 400 },
+            { text: '  ✓ execute_command (#2)  STDOUT: diff --git a/docs/index.html b/docs/index.html...', cls: 'c-green', delay: 200 },
+            { text: 'I see the diff for docs/index.html. It\'s a complete rewrite of the page.', cls: '', delay: 50 },
+            { text: '', delay: 100 },
+            { html: '<span class="pl"><span class="pl-seg pl-blue">✦ mentask</span><span class="pl-arr"></span><span class="pl-seg pl-dark">⏱️ 02:16</span><span class="pl-arr"></span><span class="pl-seg pl-dark">🛠️ read_file</span><span class="pl-end"></span></span>', delay: 400 },
+            { text: '  ⚡ read_file  path=docs/index.html', cls: 'c-dim', delay: 100 },
+            { text: '  · Executing 1 tools...', cls: 'c-dim', delay: 400 },
+            { text: '  ✓ read_file (#3)  --- Reading \'/home/jules_dev/mentask.py/docs/index.html\' ---', cls: 'c-green', delay: 200 },
+            { text: '', delay: 100 },
+            { html: '<span class="pl"><span class="pl-seg pl-blue">✦ mentask</span><span class="pl-arr"></span><span class="pl-seg pl-dark">⏱️ 02:16</span><span class="pl-arr"></span><span class="pl-seg pl-dark">🛠️ execute_command</span><span class="pl-end"></span></span>', delay: 400 },
+            { text: '  ⚡ execute_command  command=git status --porcelain', cls: 'c-dim', delay: 100 },
+            { text: '  · Executing 1 tools...', cls: 'c-dim', delay: 400 },
+            { text: '  ✓ execute_command (#4)', cls: 'c-green', delay: 200 },
+            { text: '╭────────────────────────╮', cls: 'c-dim', delay: 100 },
+            { text: '│  STDOUT:               │', cls: 'c-dim', delay: 50 },
+            { text: '│   M docs/index.html    │', cls: 'c-dim', delay: 50 },
+            { text: '│  ?? docs/style.css     │', cls: 'c-dim', delay: 50 },
+            { text: '╰────────────────────────╯', cls: 'c-dim', delay: 100 },
+            { text: '', delay: 100 },
+            { text: '❓ AGENT QUESTION: Do you want me to add the untracked file', cls: 'c-yellow', delay: 50 },
+            { text: '   `docs/style.css` before committing?', cls: 'c-yellow', delay: 50 },
+            { html: '<span class="c-dim">Your Answer:</span> <span class="cursor">▋</span>', delay: 0 },
         ];
 
         const terminal = document.getElementById('terminal');
@@ -226,8 +277,11 @@
             const line = lines[lineIndex];
             const div = document.createElement('div');
             div.className = 'term-line';
-            if (line.cls) div.className += ' ' + line.cls;
-            div.textContent = line.text;
+            if (line.html) div.innerHTML = line.html;
+            else {
+                if (line.cls) div.className += ' ' + line.cls;
+                div.textContent = line.text;
+            }
             terminal.appendChild(div);
             terminal.scrollTop = terminal.scrollHeight;
             lineIndex++;
