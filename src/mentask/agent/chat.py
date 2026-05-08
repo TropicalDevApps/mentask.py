@@ -110,7 +110,7 @@ class ChatAgent:
                 # We can't easily await here in init, but we set the name so start() works correctly
                 self.model_name = "ollama:llama3"
 
-        self.session.metrics = getattr(self.session, "metrics", None) or TokenTracker(model_name=self.model_name)
+        self.session.metrics = self.session.metrics or TokenTracker(model_name=self.model_name)
         self.metrics = self.session.metrics
         self.context = deps.context
         self.commands = CommandHandler(self)
@@ -582,7 +582,7 @@ class ChatAgent:
         from ..cli import themes
 
         # 1. Build basic completion map
-        completion_dict = {cmd: None for cmd in self.commands.get_all_commands()}
+        completion_dict: dict[str, Any] = {cmd: None for cmd in self.commands.get_all_commands()}
 
         # 2. Add sub-commands
         completion_dict["/theme"] = {t: None for t in themes.THEMES}
@@ -638,11 +638,17 @@ class ChatAgent:
         from ..cli.gem_renderer import GemStyleRenderer
 
         # Try to import prompt_toolkit for interactive features
+        PromptSession = None
+        KeyBindings = None
+        patch_stdout = None
         try:
-            from prompt_toolkit import PromptSession
-            from prompt_toolkit.key_binding import KeyBindings
-            from prompt_toolkit.patch_stdout import patch_stdout
+            from prompt_toolkit import PromptSession as PS
+            from prompt_toolkit.key_binding import KeyBindings as KB
+            from prompt_toolkit.patch_stdout import patch_stdout as PS_OUT
 
+            PromptSession = PS
+            KeyBindings = KB
+            patch_stdout = PS_OUT
             HAS_PT = True
         except ImportError:
             HAS_PT = False
@@ -677,14 +683,16 @@ class ChatAgent:
             renderer.print_warning(f"New session: [bold]{self.history.current_session_id}[/bold]")
 
         # Setup prompt_toolkit if available
-        if HAS_PT:
+        session = None
+        if HAS_PT and KeyBindings and PromptSession and patch_stdout:
             kb = KeyBindings()
 
             @kb.add("c-o")
             def _expand_last(event):
                 """Expand the last tool artifact on Ctrl+O."""
-                with patch_stdout(raw=True):
-                    renderer.expand_artifact(-1)
+                if patch_stdout:
+                    with patch_stdout(raw=True):
+                        renderer.expand_artifact(-1)
 
             # Initialize completer with dynamic data
             # In local mode, we sync local models once at start
@@ -728,7 +736,7 @@ class ChatAgent:
 
                 user_prompt_rich = renderer.prompt_engine.build_user_prompt(style, os.getcwd(), is_trusted, cost)
 
-                if HAS_PT:
+                if HAS_PT and session and patch_stdout:
                     from prompt_toolkit.formatted_text import ANSI
 
                     # Convert Rich to ANSI for prompt_toolkit

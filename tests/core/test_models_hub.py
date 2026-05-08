@@ -107,7 +107,7 @@ def test_sync_ttl_skip(mock_urlopen, reset_singleton, mock_config_dir):
     hub = ModelsHub()
     hub._last_sync = time.time() - 900  # Less than CACHE_TTL (86400) difference
 
-    hub.sync()
+    hub.sync(skip_local=True)
 
     mock_urlopen.assert_not_called()
 
@@ -128,7 +128,7 @@ def test_sync_force(mock_urlopen, reset_singleton, mock_config_dir):
         hub._last_sync = time.time() - 900  # Less than CACHE_TTL difference
 
         with patch.object(hub, "_save_cache"):
-            hub.sync(force=True)
+            hub.sync(force=True, skip_local=True)
 
     mock_urlopen.assert_called_once()
     assert hub._last_sync > 0
@@ -143,7 +143,7 @@ def test_sync_network_error(mock_urlopen, reset_singleton, mock_config_dir):
     hub._last_sync = 0
     hub._data = {"existing": "data"}  # Should not be overwritten
 
-    hub.sync()
+    hub.sync(skip_local=True)
 
     assert hub._last_sync == 0  # Should not be updated
     assert hub._data == {"existing": "data"}
@@ -210,7 +210,7 @@ def test_search_by_query(reset_singleton, mock_config_dir):
     results = hub.search(query="gemini")
     assert len(results) == 2
     assert results[0]["name"] == "Gemini 2.0 Flash"
-    assert results[0]["_provider"] == "google"
+    assert results[0]["_provider_name"] == "Google"
 
 
 def test_search_by_provider(reset_singleton, mock_config_dir):

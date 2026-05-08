@@ -26,8 +26,8 @@ def get_provider(model_name: str, config: Any) -> BaseProvider:
         return OllamaProvider(model_name, config)
 
     # 3. Consult models.dev Hub for metadata
-    info = hub.get_model(model_name)
-    resolved_provider = info.get("_provider", "").lower() if info else None
+    provider_meta = hub.get_provider_for_model(model_name)
+    resolved_provider = provider_meta.get("id", "").lower() if provider_meta else None
 
     # Use scoped prefix if available, otherwise use resolved provider from hub
     active_provider_id = provider_prefix or resolved_provider

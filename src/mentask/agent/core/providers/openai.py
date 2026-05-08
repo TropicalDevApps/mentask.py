@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import urllib.error
 import urllib.request
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -54,33 +55,26 @@ class OpenAIProvider(BaseProvider):
         res = self.config.load_api_key(provider_id, return_source=True)
 
         # If not found, try the suggested env names from models.dev
-        if not res and env_vars:
+        if res and not res[0] and env_vars:
             for env_name in env_vars:
                 # We normalize env names (e.g. DEEPSEEK_API_KEY -> deepseek) to check config
                 normalized = env_name.replace("_API_KEY", "").lower()
-                res = self.config.load_api_key(normalized, return_source=True)
-                if res:
+                res_env = self.config.load_api_key(normalized, return_source=True)
+                if res_env and res_env[0]:
+                    res = res_env
                     provider_id = normalized
                     break
 
-        if isinstance(res, tuple) and len(res) == 2:
+        if res and isinstance(res, tuple) and len(res) == 2:
             self.api_key, self.key_source = res
-        elif res:
-            self.api_key = res
-            self.key_source = "Unknown"
         else:
             self.api_key, self.key_source = None, None
 
         if not self.api_key and provider_id != "openai":
             # Fallback to generic openai key if specific one is missing
             res2 = self.config.load_api_key("openai", return_source=True)
-            if isinstance(res2, tuple) and len(res2) == 2:
+            if res2 and isinstance(res2, tuple) and len(res2) == 2:
                 self.api_key, self.key_source = res2
-            elif res2:
-                self.api_key = res2
-                self.key_source = "Unknown"
-            else:
-                self.api_key, self.key_source = None, None
 
         if not self.api_key:
             _logger.warning(f"No API key found for {self.model_name} (provider: {provider_id})")

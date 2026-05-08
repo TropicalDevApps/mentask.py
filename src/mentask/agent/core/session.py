@@ -28,6 +28,7 @@ class SessionManager:
         self.model_name = model_name
         self.simulation = simulation
         self.recent_files: list[str] = []  # Track last 5 unique files accessed
+        self.metrics = None  # Will be assigned by ChatAgent or initialized later
 
         # Initialize provider via factory
         self.provider = get_provider(model_name, config_manager)
@@ -168,7 +169,7 @@ class SessionManager:
         new_history.append(Message(role=Role.USER, content=continuation_text))
 
         # 3. Calculate savings
-        if hasattr(self, "metrics") and last_usage:
+        if self.metrics and last_usage:
             saved = last_usage.input_tokens - 1000
             if saved > 0:
                 self.metrics.add_savings(saved)

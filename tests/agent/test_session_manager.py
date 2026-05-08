@@ -27,8 +27,10 @@ async def test_session_manager_init(mock_config):
 
 
 @pytest.mark.asyncio
-async def test_session_manager_setup_api_delegation(mock_config):
+@patch("mentask.agent.core.providers.__init__.hub.get_provider_for_model")
+async def test_session_manager_setup_api_delegation(mock_hub_get, mock_config):
     """Verifies that setup_api calls the provider's setup method."""
+    mock_hub_get.return_value = {"id": "google", "name": "Google"}
     manager = SessionManager(mock_config, model_name="gemini-2.0-flash")
     manager.provider = AsyncMock()
     manager.provider.setup.return_value = True
@@ -39,8 +41,10 @@ async def test_session_manager_setup_api_delegation(mock_config):
 
 
 @pytest.mark.asyncio
-async def test_session_manager_switch_model(mock_config):
+@patch("mentask.agent.core.providers.__init__.hub.get_provider_for_model")
+async def test_session_manager_switch_model(mock_hub_get, mock_config):
     """Verifies that switch_model re-initializes the provider."""
+    mock_hub_get.return_value = {"id": "google", "name": "Google"}
     manager = SessionManager(mock_config, model_name="gemini-1.5-flash")
 
     with patch("mentask.agent.core.session.get_provider") as mock_get:
@@ -57,8 +61,10 @@ async def test_session_manager_switch_model(mock_config):
 
 
 @pytest.mark.asyncio
-async def test_session_manager_compaction_trigger(mock_config):
+@patch("mentask.agent.core.providers.__init__.hub.get_provider_for_model")
+async def test_session_manager_compaction_trigger(mock_hub_get, mock_config):
     """Verifies that compaction is triggered when threshold is approached."""
+    mock_hub_get.return_value = {"id": "google", "name": "Google"}
     manager = SessionManager(mock_config, model_name="gemini-2.0-flash")
     manager.compaction_threshold = 1000
     manager.provider = MagicMock()

@@ -32,11 +32,8 @@ class OllamaProvider(OpenAIProvider):
 
         # Load API key (rarely needed for local Ollama, but supported)
         res = self.config.load_api_key("ollama", return_source=True)
-        if isinstance(res, tuple) and len(res) == 2:
+        if res and isinstance(res, tuple) and len(res) == 2:
             self.api_key, self.key_source = res
-        elif res:
-            self.api_key = res
-            self.key_source = "Unknown"
         else:
             # Default for Ollama
             self.api_key = "ollama"

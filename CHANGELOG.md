@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.23.3] - 2026-05-08
+
+### Fixed
+- **Hotfix**: Resolved `TypeError` during model switching and initialization by correcting the dictionary lookup logic for `provider_meta` in the `ModelsHub` integration.
+- **Tests**: Fixed test suite failures caused by the `0.23.2` architecture updates.
+
 ## [0.23.2] - 2026-05-08
 
 ### Added

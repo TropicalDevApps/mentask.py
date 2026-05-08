@@ -225,10 +225,16 @@ class ModelsHub:
                     if q not in m_info.get("name", "").lower() and q not in m_id.lower():
                         continue
 
-                # Add extra context
-                m_info["_provider"] = p_id
-                m_info["_provider_name"] = p_info.get("name")
-                results.append(m_info)
+                # Add extra context without mutating the original dictionary
+                result_info = m_info.copy()
+
+                # Ensure _provider_name exists in the copy for backward compatibility
+                if "_provider" in result_info and isinstance(result_info["_provider"], dict):
+                    result_info["_provider_name"] = result_info["_provider"].get("name")
+                else:
+                    result_info["_provider_name"] = p_info.get("name")
+
+                results.append(result_info)
 
         return results
 

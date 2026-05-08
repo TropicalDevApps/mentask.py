@@ -20,13 +20,13 @@ async def test_openai_provider_safe_endpoint(mock_config):
     provider = OpenAIProvider("fake_provider:model_x", mock_config)
 
     with (
-        patch("mentask.core.models_hub.ModelsHub.get_model") as mock_get_model,
-        patch("mentask.core.models_hub.hub._data", new_callable=dict) as mock_data,
+        patch("mentask.core.models_hub.ModelsHub.get_model", return_value={"id": "model_x"}),
+        patch(
+            "mentask.core.models_hub.ModelsHub.get_provider_for_model",
+            return_value={"id": "fake_provider", "api": "https://api.valid-global-provider.com/v1"},
+        ),
         patch("mentask.tools.web_tools.is_safe_url", return_value=True),
     ):
-        mock_get_model.return_value = {"id": "model_x"}
-        mock_data.update({"providers": {"fake_provider": {"endpoint": "https://api.valid-global-provider.com/v1"}}})
-
         success = await provider.setup()
 
         assert success is True
@@ -39,13 +39,13 @@ async def test_openai_provider_rejects_http(mock_config):
     provider = OpenAIProvider("fake_provider:model_x", mock_config)
 
     with (
-        patch("mentask.core.models_hub.ModelsHub.get_model") as mock_get_model,
-        patch("mentask.core.models_hub.hub._data", new_callable=dict) as mock_data,
+        patch("mentask.core.models_hub.ModelsHub.get_model", return_value={"id": "model_x"}),
+        patch(
+            "mentask.core.models_hub.ModelsHub.get_provider_for_model",
+            return_value={"id": "fake_provider", "api": "http://api.insecure-provider.com/v1"},
+        ),
         patch("mentask.tools.web_tools.is_safe_url", return_value=True),
     ):
-        mock_get_model.return_value = {"id": "model_x"}
-        mock_data.update({"providers": {"fake_provider": {"endpoint": "http://api.insecure-provider.com/v1"}}})
-
         success = await provider.setup()
 
         assert success is True
@@ -58,13 +58,13 @@ async def test_openai_provider_rejects_unsafe_url(mock_config):
     provider = OpenAIProvider("fake_provider:model_x", mock_config)
 
     with (
-        patch("mentask.core.models_hub.ModelsHub.get_model") as mock_get_model,
-        patch("mentask.core.models_hub.hub._data", new_callable=dict) as mock_data,
+        patch("mentask.core.models_hub.ModelsHub.get_model", return_value={"id": "model_x"}),
+        patch(
+            "mentask.core.models_hub.ModelsHub.get_provider_for_model",
+            return_value={"id": "fake_provider", "api": "https://127.0.0.1/v1"},
+        ),
         patch("mentask.tools.web_tools.is_safe_url", return_value=False),
     ):
-        mock_get_model.return_value = {"id": "model_x"}
-        mock_data.update({"providers": {"fake_provider": {"endpoint": "https://127.0.0.1/v1"}}})
-
         success = await provider.setup()
 
         assert success is True

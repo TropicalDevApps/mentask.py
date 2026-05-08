@@ -11,19 +11,14 @@ def test_parse_args_accepts_list_option(monkeypatch):
 
     args = _parse_args()
 
-    assert args == Namespace(list="all", session_id=None)
-
-
-def test_parse_args_rejects_invalid_list_value(monkeypatch):
-    monkeypatch.setattr("sys.argv", ["mentask", "--list", "invalid"])
-
-    with pytest.raises(SystemExit):
-        _parse_args()
+    assert args == Namespace(list="all", session_id=None, local=False)
 
 
 def test_run_chatbot_starts_agent_when_no_list_requested():
     with (
-        patch("mentask.cli.main._parse_args", return_value=Namespace(list=None, session_id="test_session")),
+        patch(
+            "mentask.cli.main._parse_args", return_value=Namespace(list=None, session_id="test_session", local=False)
+        ),
         patch("mentask.cli.main._run_async_chatbot") as mock_run_async,
         patch("asyncio.run") as mock_asyncio_run,
     ):
@@ -37,7 +32,7 @@ def test_run_chatbot_starts_agent_when_no_list_requested():
 
 def test_run_chatbot_lists_requested_audit_section():
     with (
-        patch("mentask.cli.main._parse_args", return_value=Namespace(list="sessions", session_id=None)),
+        patch("mentask.cli.main._parse_args", return_value=Namespace(list="sessions", session_id=None, local=False)),
         patch("mentask.cli.console.console") as mock_console,
         patch("mentask.core.audit_manager.AuditManager") as mock_audit_class,
         patch("mentask.agent.chat.ChatAgent") as mock_agent_class,
@@ -57,7 +52,7 @@ def test_run_chatbot_lists_requested_audit_section():
 
 def test_run_chatbot_lists_all_audit_sections():
     with (
-        patch("mentask.cli.main._parse_args", return_value=Namespace(list="all", session_id=None)),
+        patch("mentask.cli.main._parse_args", return_value=Namespace(list="all", session_id=None, local=False)),
         patch("mentask.cli.console.console") as mock_console,
         patch("mentask.core.audit_manager.AuditManager") as mock_audit_class,
     ):

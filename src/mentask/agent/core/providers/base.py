@@ -20,7 +20,7 @@ class BaseProvider(ABC):
         pass
 
     @abstractmethod
-    async def generate_stream(
+    def generate_stream(
         self,
         history: list[Message],
         tools_schema: list[dict[str, Any]],
