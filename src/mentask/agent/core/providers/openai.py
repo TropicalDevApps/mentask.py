@@ -115,7 +115,27 @@ class OpenAIProvider(BaseProvider):
                     }
                 )
             else:
-                messages.append({"role": role, "content": ContextCompressor.smart_compress(str(msg.content))})
+                msg_dict = {"role": role, "content": ContextCompressor.smart_compress(str(msg.content)) or ""}
+
+                # Check for tool_calls if it's an AssistantMessage
+                from ...schema import AssistantMessage
+
+                if isinstance(msg, AssistantMessage) and msg.tool_calls:
+                    msg_dict["tool_calls"] = [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.name,
+                                "arguments": json.dumps(tc.arguments)
+                                if isinstance(tc.arguments, dict)
+                                else str(tc.arguments),
+                            },
+                        }
+                        for tc in msg.tool_calls
+                    ]
+
+                messages.append(msg_dict)
 
         payload = {
             "model": self.model_name,

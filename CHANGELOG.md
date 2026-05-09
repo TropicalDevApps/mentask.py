@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.1] - 2026-05-09
+
+### Fixed
+- **Agent Amnesia**: Fixed a critical bug in `OpenAIProvider` where the agent would "forget" previous conversation turns. This was caused by the provider discarding tool calls when serializing the `AssistantMessage` history into the OpenAI payload format, leading to malformed conversation sequences that broke context retention in models like Ollama.
+
 ## [0.25.0] - 2026-05-08
 
 ### Added
