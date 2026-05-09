@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.4] - 2026-05-08
+
+### Fixed
+- **Streaming Stability**: Refactored the response stream reader in `OpenAIProvider` to use non-blocking `readline` calls via `asyncio.to_thread`. This resolves a critical issue where the event loop would block during streaming, causing 60s timeout leaks regardless of the configured timeout.
+
 ## [0.24.3] - 2026-05-08
 
 ### Fixed

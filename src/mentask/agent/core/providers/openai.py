@@ -142,8 +142,12 @@ class OpenAIProvider(BaseProvider):
             # Buffer for tool calls: index -> {id, name, arguments_str}
             tool_calls_buffer = {}
 
-            for line in response:
-                line = line.decode("utf-8").strip()
+            while True:
+                line_raw = await asyncio.to_thread(response.readline)
+                if not line_raw:
+                    break
+
+                line = line_raw.decode("utf-8").strip()
                 if not line.startswith("data: "):
                     continue
 
