@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.3] - 2026-05-08
+
+### Fixed
+- **Ollama Stability**: Increased the default request timeout for local models from 60s to 300s to prevent frequent timeouts during model loading on systems like Gentoo.
+- **Dynamic Timeouts**: Refactored the provider base class to support configurable timeouts for both streaming and health checks.
+
 ## [0.24.2] - 2026-05-08
 
 ### Changed

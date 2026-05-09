@@ -22,6 +22,7 @@ class OpenAIProvider(BaseProvider):
         super().__init__(model_name, config)
         self.api_key: str | None = None
         self.api_base: str = "https://api.openai.com/v1"  # Default
+        self.request_timeout = 60  # Default timeout in seconds
 
     async def setup(self) -> bool:
         """Resolves API Base and Key dynamically using models.dev metadata."""
@@ -132,7 +133,7 @@ class OpenAIProvider(BaseProvider):
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
         def _do_request():
-            return urllib.request.urlopen(req, timeout=60)
+            return urllib.request.urlopen(req, timeout=self.request_timeout)
 
         try:
             response = await asyncio.to_thread(_do_request)
@@ -249,7 +250,7 @@ class OpenAIProvider(BaseProvider):
             m_id = m["id"]
             provider_meta = m.get("_provider")
             p_id = provider_meta.get("id") if isinstance(provider_meta, dict) else provider_meta
-            
+
             if p_id and p_id != "openai":
                 model_list.append(f"{p_id}:{m_id}")
             else:
@@ -275,7 +276,10 @@ class OpenAIProvider(BaseProvider):
         def _do_request():
             try:
                 from urllib.error import HTTPError
-                with urllib.request.urlopen(req, timeout=10) as response:
+
+                # Use a reasonable timeout for health checks, scaled with request_timeout
+                health_timeout = max(10, self.request_timeout // 3)
+                with urllib.request.urlopen(req, timeout=health_timeout) as response:
                     return True, None
             except HTTPError as e:
                 return False, str(e.code)
