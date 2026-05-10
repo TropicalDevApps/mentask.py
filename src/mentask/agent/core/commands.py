@@ -555,7 +555,7 @@ class CommandHandler:
             except (ValueError, IndexError):
                 return f"[error]Invalid artifact index: {args[0]}[/error]"
 
-    def _cmd_sessions(self) -> Table:
+    def _cmd_sessions(self) -> Table | str:
         """Lists all stored session IDs."""
         sessions = self.agent.history.list_sessions()
         if not sessions:

@@ -58,6 +58,10 @@ class ToolRegistry:
     def get_tool(self, name: str) -> BaseTool | None:
         return self._tools.get(name)
 
+    def get_all_tools(self) -> dict[str, BaseTool]:
+        """Returns the dictionary of all registered tools."""
+        return self._tools.copy()
+
     def get_all_schemas(self) -> list[dict[str, Any]]:
         """Returns all registered tool schemas for the LLM."""
         return [
