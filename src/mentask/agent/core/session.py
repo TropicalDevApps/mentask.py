@@ -4,11 +4,13 @@ Session management module for mentask.
 Handles provider selection, authentication, and context lifecycle (compaction).
 """
 
+import asyncio
 import logging
 import os
 from collections.abc import AsyncGenerator
 from typing import Any  # noqa: UP035
 
+from rich.panel import Panel
 from rich.prompt import Prompt
 
 from ...cli.console import console
@@ -200,16 +202,30 @@ class SessionManager:
         # Re-inject recent files context
         if self.recent_files:
             files_context = "\n\nRETAINED CONTEXT (Recent Files):\n"
-            for path in self.recent_files:
-                if os.path.exists(path):
-                    try:
-                        with open(path, encoding="utf-8") as f:
-                            content = f.read()
-                            if len(content) > 2000:
-                                content = content[:2000] + "..."
-                            files_context += f"\nFile: {path}\n```\n{content}\n```\n"
-                    except Exception:
-                        pass
+
+            def _read_file_sync(path):
+                if not os.path.exists(path):
+                    return None, path
+                try:
+                    with open(path, encoding="utf-8") as f:
+                        content = f.read()
+                        if len(content) > 2000:
+                            content = content[:2000] + "..."
+                        return content, path
+                except Exception:
+                    return None, path
+
+            # Read all files concurrently in a thread pool so we don't block the event loop
+            tasks = [asyncio.to_thread(_read_file_sync, path) for path in self.recent_files]
+            if tasks:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for res in results:
+                    if isinstance(res, Exception):
+                        continue
+                    content, path = res
+                    if content is not None:
+                        files_context += f"\nFile: {path}\n```\n{content}\n```\n"
+
             continuation_text += files_context
 
         new_history.append(Message(role=Role.USER, content=continuation_text))
