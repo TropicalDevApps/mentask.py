@@ -9,12 +9,14 @@ def test_timeout_classification_network():
     assert strategy["action"] == "retry_with_backoff"
     assert strategy["backoff_seconds"] > 0
 
+
 def test_timeout_classification_model():
     ctx = TimeoutContext(error_msg="TimeoutError()", provider="ollama", elapsed=65.0, attempt=1)
 
     assert ctx.classify() == TimeoutSeverity.MODEL
     strategy = ctx.get_recovery_strategy()
     assert strategy["action"] == "reduce_context_and_retry"
+
 
 def test_timeout_manager_metrics():
     mgr = TimeoutRecoveryManager()

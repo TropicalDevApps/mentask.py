@@ -5,10 +5,12 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
 class TimeoutSeverity(Enum):
     NETWORK = "network"
     MODEL = "model"
     UNKNOWN = "unknown"
+
 
 @dataclass
 class TimeoutContext:
@@ -31,22 +33,19 @@ class TimeoutContext:
         if severity == TimeoutSeverity.NETWORK:
             return {
                 "action": "retry_with_backoff",
-                "backoff_seconds": 2 ** self.attempt,
-                "max_retries": self.max_attempts
+                "backoff_seconds": 2**self.attempt,
+                "max_retries": self.max_attempts,
             }
         elif severity == TimeoutSeverity.MODEL:
             return {
                 "action": "reduce_context_and_retry",
                 "compression": "aggressive",
                 "fallback_model": "qwen2.5-7b",
-                "timeout_seconds": 30
+                "timeout_seconds": 30,
             }
         else:
-            return {
-                "action": "simple_retry",
-                "timeout_seconds": 45,
-                "retries_left": self.max_attempts - self.attempt
-            }
+            return {"action": "simple_retry", "timeout_seconds": 45, "retries_left": self.max_attempts - self.attempt}
+
 
 class TimeoutRecoveryManager:
     def __init__(self, max_global_attempts: int = 3):
@@ -57,7 +56,7 @@ class TimeoutRecoveryManager:
             "timeouts_by_provider": {},
             "timeouts_by_severity": {},
             "successful_recoveries": 0,
-            "failed_recoveries": 0
+            "failed_recoveries": 0,
         }
 
     def get_metrics(self) -> dict[str, Any]:
@@ -69,7 +68,7 @@ class TimeoutRecoveryManager:
             attempt=current_attempt,
             max_attempts=self.max_global_attempts,
             error_msg=str(error),
-            provider=provider
+            provider=provider,
         )
 
         self.timeout_history.append(ctx)
@@ -77,9 +76,13 @@ class TimeoutRecoveryManager:
 
         # Actualizar métricas
         self.metrics_reporter["total_timeouts"] += 1
-        self.metrics_reporter["timeouts_by_provider"][provider] = self.metrics_reporter["timeouts_by_provider"].get(provider, 0) + 1
+        self.metrics_reporter["timeouts_by_provider"][provider] = (
+            self.metrics_reporter["timeouts_by_provider"].get(provider, 0) + 1
+        )
         sev = ctx.classify().value
-        self.metrics_reporter["timeouts_by_severity"][sev] = self.metrics_reporter["timeouts_by_severity"].get(sev, 0) + 1
+        self.metrics_reporter["timeouts_by_severity"][sev] = (
+            self.metrics_reporter["timeouts_by_severity"].get(sev, 0) + 1
+        )
 
         logger.warning(
             f"Timeout en {provider} (intento {current_attempt}/{self.max_global_attempts}): "
