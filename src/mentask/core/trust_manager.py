@@ -23,8 +23,10 @@ class TrustManager:
                     data = json.load(f)
                     if isinstance(data, list):
                         self.trusted_paths = set(os.path.abspath(p) for p in data)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+
+                logging.getLogger("mentask").error(f"Failed to load trust config: {e}")
 
     async def load_trust(self) -> None:
         """Loads trusted paths from the global config directory."""
