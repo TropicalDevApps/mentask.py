@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.2] - 2026-05-09
+
+### Fixed
+- **Folder Discovery**: Fixed a bug where `glob_find` only returned files, causing the agent to fail when searching for directories. Also updated `ensure_safe_path` to resolve symlinks and normalize case to prevent false "Access denied" errors.
+- **Command Security**: Relaxed the security warning for chained shell commands (e.g., `&&`, `|`) so that the agent doesn't unnecessarily prompt for manual approval in `/mode auto` unless the command contains explicitly dangerous patterns.
+
 ## [0.25.1] - 2026-05-09
 
 ### Fixed

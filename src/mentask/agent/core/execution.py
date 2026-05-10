@@ -13,8 +13,9 @@ class ExecutionManager:
     Manages tool execution, security verification, and diagnostic injection.
     """
 
-    def __init__(self, tool_registry):
+    def __init__(self, tool_registry, config=None):
         self.tools = tool_registry
+        self.config = config
         self.trust = TrustManager()
         self.lsp: LSPClient | None = None
 
@@ -89,16 +90,34 @@ class ExecutionManager:
         is_dir_trusted = self.trust.is_trusted(Path.cwd().resolve())
         force_confirmation = bool(security_warning)
 
+        # Check edit mode
+        edit_mode = "manual"
+        if hasattr(self, "config") and self.config and hasattr(self.config, "settings"):
+            edit_mode = self.config.settings.get("edit_mode", "manual")
+
         # 1. If tool doesn't need confirmation or there's no UI to ask, skip
         if not (tool and tool.requires_confirmation and confirmation_callback):
             return None
 
-        # 2. If it's a dangerous command (warning exists), we MUST confirm
-        if force_confirmation:
-            pass
-        # 3. If the directory is trusted, we skip confirmation for non-dangerous tools
-        elif is_dir_trusted or tool_call.name == "execute_command":
-            return None
+        # 2. In auto mode, we only confirm if it's an explicit DANGEROUS/SECURITY warning
+        if edit_mode == "auto":
+            if (
+                "DANGEROUS" in security_warning
+                or "SECURITY ERROR" in security_warning
+                or "SECURITY RISK" in security_warning
+            ):
+                # Force confirmation for severe risks even in auto mode
+                pass
+            elif is_dir_trusted or tool_call.name == "execute_command":
+                # In auto mode, trusted dirs skip confirmation. execute_command also skips if not dangerous.
+                return None
+        else:
+            # Manual mode logic:
+            if force_confirmation:
+                pass
+            elif is_dir_trusted and tool_call.name != "execute_command":
+                # In manual mode, we still allow trusted file edits to pass if no warning
+                return None
 
         try:
             allowed = await confirmation_callback(tool_call.name, tool_call.arguments, warning=security_warning)
