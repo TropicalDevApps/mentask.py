@@ -11,7 +11,7 @@ async def test_cli_provider_stream():
     p = get_provider("cli:python", config)
 
     # We will use 'python tests/dummy_cli.py' as the binary to test.
-    p.cli_command = "python tests/dummy_cli.py"
+    p.cli_command = "python tests/dummy_cli.py"  # type: ignore
 
     events = []
     async for chunk in p.generate_stream([], [], {"system_instruction": "Test"}):

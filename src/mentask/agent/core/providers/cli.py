@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import re
 import shlex
 import uuid
 from collections.abc import AsyncGenerator

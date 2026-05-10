@@ -6,6 +6,7 @@ from typing import Any
 from ...core.trust_manager import TrustManager
 from ..schema import ToolResult
 from .lsp_client import LSPClient
+from ...core.execution import BlockingOperationManager, OperationTimeout
 
 
 class ExecutionManager:
@@ -18,6 +19,7 @@ class ExecutionManager:
         self.config = config
         self.trust = TrustManager()
         self.lsp: LSPClient | None = None
+        self.operation_mgr = BlockingOperationManager(global_timeout=120)
 
     async def ensure_lsp_started(self) -> None:
         if self.lsp is None:
@@ -87,7 +89,7 @@ class ExecutionManager:
         confirmation_callback: Callable | None,
         security_warning: str,
     ) -> ToolResult | None:
-        is_dir_trusted = self.trust.is_trusted(Path.cwd().resolve())
+        is_dir_trusted = self.trust.is_trusted(str(Path.cwd().resolve()))
         force_confirmation = bool(security_warning)
 
         # Check edit mode
@@ -131,8 +133,20 @@ class ExecutionManager:
         return None
 
     async def call_tool_safely(self, tool_call) -> ToolResult:
-        try:
+        import time
+        async def run_tool():
             return await self.tools.call_tool(tool_call.name, tool_call.id, tool_call.arguments)
+            
+        try:
+            result = await self.operation_mgr.execute_long_operation(
+                op_id=f"tool_{tool_call.id}_{time.time()}",
+                description=f"Executing tool: {tool_call.name}",
+                operation=run_tool,
+                timeout_seconds=60
+            )
+            if isinstance(result, OperationTimeout):
+                return ToolResult(tool_call_id=tool_call.id, content=f"Tool timeout: {result}", is_error=True)
+            return result
         except Exception as exc:
             return ToolResult(tool_call_id=tool_call.id, content=f"Tool execution failed: {exc}", is_error=True)
 

@@ -30,8 +30,7 @@ class OpenAIProvider(BaseProvider):
         from ....core.models_hub import hub
         from ....tools.web_tools import is_safe_url
 
-        # 1. Try to find model and provider info in the Hub
-        info = hub.get_model(self.model_name)
+        # 1. Try to find provider info in the Hub
         provider_meta = hub.get_provider_for_model(self.model_name)
 
         provider_id = "openai"  # Default
@@ -115,10 +114,12 @@ class OpenAIProvider(BaseProvider):
                     }
                 )
             else:
-                msg_dict = {"role": role, "content": ContextCompressor.smart_compress(str(msg.content)) or ""}
+                msg_dict: dict[str, Any] = {
+                    "role": role,
+                    "content": ContextCompressor.smart_compress(str(msg.content)) or "",
+                }
 
-                # Check for tool_calls if it's an AssistantMessage
-                from ...schema import AssistantMessage
+                # Check for tool_calls if it's an AssistantMessage                from ...schema import AssistantMessage
 
                 if isinstance(msg, AssistantMessage) and msg.tool_calls:
                     msg_dict["tool_calls"] = [
@@ -303,11 +304,11 @@ class OpenAIProvider(BaseProvider):
 
                 # Use a reasonable timeout for health checks, scaled with request_timeout
                 health_timeout = max(10, self.request_timeout // 3)
-                with urllib.request.urlopen(req, timeout=health_timeout) as response:
+                with urllib.request.urlopen(req, timeout=health_timeout):
                     return True, None
-            except HTTPError as e:
+            except urllib.error.HTTPError as e:
                 return False, str(e.code)
-            except Exception as e:
+            except Exception:
                 return False, "ERR"
 
         return await asyncio.to_thread(_do_request)

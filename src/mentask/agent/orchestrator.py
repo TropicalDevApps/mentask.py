@@ -9,6 +9,10 @@ from .core.execution import ExecutionManager
 from .core.provider import ProviderManager
 from .schema import AgentTurnStatus, Message, Role
 from .tools.base import ToolRegistry
+from ..core.i18n import _
+from ..core.retry_strategy import TimeoutRecoveryManager
+import asyncio
+import time
 
 _logger = logging.getLogger("mentask")
 
@@ -37,6 +41,21 @@ class AgentOrchestrator:
         # Performance & Optimization
         self.snapper = ContextSnapper(client.model_name)
         self.summarizer = Summarizer()
+        
+        self.timeout_recovery = TimeoutRecoveryManager()
+
+    def get_session_report(self) -> dict:
+        """Returns observability metrics for the current session."""
+        try:
+            from ..tools.file_tools import FILE_SESSIONS
+            file_sessions_metrics = {path: session.metrics for path, session in FILE_SESSIONS.items()}
+        except ImportError:
+            file_sessions_metrics = {}
+            
+        return {
+            "timeout_stats": self.timeout_recovery.get_metrics(),
+            "file_sessions": file_sessions_metrics,
+        }
 
     def _report_status(self, message: str) -> None:
         """Internal helper to log and report status via callback."""
@@ -134,6 +153,7 @@ class AgentOrchestrator:
             yield {"status": AgentTurnStatus.THINKING}
 
             try:
+                turn_start = time.time()
                 turn_config = self._build_turn_config(config)
                 async for event in self.provider.stream_turn(history, self.tools.get_all_schemas(), config=turn_config):
                     yield event
@@ -149,6 +169,37 @@ class AgentOrchestrator:
                             yield {"type": "info", "content": "✅ Context snapped."}
 
                 assistant_msg = history[-1]
+            except (TimeoutError, asyncio.TimeoutError) as exc:
+                elapsed = time.time() - turn_start
+                strategy = self.timeout_recovery.handle_timeout(
+                    error=exc, 
+                    provider=getattr(self.client, 'provider', 'unknown'),
+                    elapsed=elapsed, 
+                    current_attempt=turn_id
+                )
+                
+                if strategy["action"] == "retry_with_backoff":
+                    wait_time = strategy["backoff_seconds"]
+                    _logger.info(f"Esperando {wait_time}s antes de reintentar por timeout...")
+                    yield {"type": "info", "content": f"Timeout network, reintentando en {wait_time}s..."}
+                    await asyncio.sleep(wait_time)
+                    continue
+                elif strategy["action"] == "reduce_context_and_retry":
+                    if len(history) > 20:
+                        keep = [history[0]] + history[-19:]
+                        history.clear()
+                        history.extend(keep)
+                    _logger.info("Reducido contexto por timeout, reintentando...")
+                    yield {"type": "info", "content": "Reduciendo contexto debido a timeout del modelo..."}
+                    continue
+                elif strategy["action"] == "simple_retry":
+                    if strategy.get("retries_left", 0) > 0:
+                        yield {"type": "info", "content": "Reintento simple tras timeout..."}
+                        continue
+                    else:
+                        _logger.error(f"Critical error during turn {turn_id}: timeouts exhaustos ({exc})")
+                        yield {"type": "error", "content": f"Critical model failure: {exc}"}
+                        break
             except Exception as exc:
                 _logger.error(f"Critical error during turn {turn_id}: {exc}")
                 yield {"type": "error", "content": f"Critical model failure: {exc}"}

@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.0] - 2026-05-09
+
+### Added
+- **Observability Metrics**: Added robust metrics tracking for `TimeoutRecoveryManager` and `FileReadingSession`.
+- **Session Reporting**: Added `get_session_report` to `AgentOrchestrator` to export timeout and file reading metrics.
+- **Graceful Shutdown**: Added signal handling (SIGINT/SIGTSTP) in `cli/main.py` to cleanly abort pending tasks, cancel running tool operations, and save checkpoints.
+
+### Fixed
+- **Infinite Loop Detection**: Integrated line-based constraints into `FileReadingSession` to preemptively intercept and abort repetitive or looping `read_file` calls.
+- **Tool Timeouts**: Refactored `ExecutionManager` to wrap all tool executions inside an async `BlockingOperationManager`, preventing indefinite hangs with a strict visible timeout ceiling.
+- **Model Timeouts**: Implemented `TimeoutRecoveryManager` in `AgentOrchestrator` to dynamically detect network stalls and model timeouts, applying context-reduction heuristics and exponential backoffs automatically.
+- **Deprecations**: Replaced `asyncio.iscoroutinefunction` with `inspect.iscoroutinefunction` for Python 3.16 future-proofing.
+- **Performance**: Eradicated an O(n) bottleneck when reading large files that was causing triple-reads to count lines.
+
+
 ## [0.25.2] - 2026-05-09
 
 ### Fixed
