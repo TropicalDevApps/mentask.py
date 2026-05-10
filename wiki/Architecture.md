@@ -59,7 +59,7 @@ flowchart TD
    - `security.py`: **\[The Guard\]** Validates paths and commands. Specifically tuned to allow agent-forged modifications in the `plugins/` directory.
    - `paths.py`: Resolves hierarchical paths for global config, local workspaces, and the new plugin incubator.
 
-## Execution Flow (v0.25.0 Pragmatic)
+## Execution Flow (v0.27.2 Pragmatic)
 
 1. **Environmental Boot**: `cli/main.py` initializes the environment.
 2. **Pre-flight Classification**: `TaskClassifier` analyzes the user prompt and assigns an **Engineering Level (L0, L1, L2, or L3)**. This modifies the `system_instruction` to prioritize speed (L1) or rigor (L3).

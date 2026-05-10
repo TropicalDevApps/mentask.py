@@ -115,7 +115,7 @@ This isn't conversation. This is **autonomy**.
 
 ### Dynamic Engineering Levels (DEL)
 
-mentask v0.25.0 introduces the **Task Classifier**, which pre-flights every prompt to set the correct engineering rigor:
+mentask v0.27.2 introduces the **Task Classifier**, which pre-flights every prompt to set the correct engineering rigor:
 
 - **L0_INQUIRY**: Informational mode. Zero tool noise. Direct answers.
 - **L1_PRAGMATIC**: Speed mode. Uses direct shell commands (`cat`, `sed`, `echo`) and avoids deep mapping.
