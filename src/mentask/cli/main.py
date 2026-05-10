@@ -23,7 +23,7 @@ class GracefulShutdown:
 
     def _handle_interrupt(self, signum, frame):
         logger = logging.getLogger("mentask")
-        logger.warning("\nSIGINT recibido - deteniendo gracefully...")
+        logger.warning("\nSIGINT received - stopping gracefully...")
         self.interrupted = True
 
         if (
@@ -34,7 +34,6 @@ class GracefulShutdown:
             ops = self.agent.orchestrator.executor.operation_mgr.active_operations
             for op_id in list(ops.keys()):
                 logger.info(f"Canceling operation: {op_id}")
-                await tracker.kill(op_id)
             sys.exit(130)
 
         if hasattr(self.agent, "save_checkpoint"):
