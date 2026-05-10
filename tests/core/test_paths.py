@@ -11,6 +11,7 @@ from mentask.core.paths import (
     get_history_dir,
     get_memory_path,
     get_standard_knowledge_dir,
+    get_tasks_path,
 )
 
 
@@ -97,6 +98,17 @@ def test_get_heartbeat_path(mock_home):
     # Check that the path is correct
     expected_path = str(mock_home / ".mentask" / "heartbeat.md")
     assert heartbeat_path == expected_path
+
+
+def test_get_tasks_path(mock_home):
+    tasks_path = get_tasks_path()
+
+    # Check that it returns a string
+    assert isinstance(tasks_path, str)
+
+    # Check that the path is correct
+    expected_path = str(mock_home / ".mentask" / "tasks.md")
+    assert tasks_path == expected_path
 
 
 def test_get_standard_knowledge_dir():
