@@ -84,14 +84,14 @@ qp_audit.md
 # ------------------------------------------------------------
 # Logs, Backups & User Data
 # ------------------------------------------------------------
-.askgem/
-.gemini/
-.gemini_chatbot_prefs.json
 .mentask/
+.gemini/
+.gemini_chatbot_prefs.json/
 *.bak
 *.bkp
 *.log
 chat_history_*.json
+.mentask_knowledge
 
 # ------------------------------------------------------------
 # Tooling & Service-specific files
@@ -125,8 +125,5 @@ compose*.yaml
 docker-compose*.yml
 .agents/
 .claude/
-AGENTS.md
-GEMINI.md
-PALETTE.MD
 CONTEXTUAL_GUIDE.md
 fix*/
