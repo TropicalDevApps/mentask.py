@@ -9,8 +9,6 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from .themes import ThemeConfig
-
 
 class ContextType(str, Enum):
     """Tipos de contexto disponibles para mentask."""

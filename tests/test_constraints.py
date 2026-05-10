@@ -1,5 +1,5 @@
-import pytest
-from mentask.core.constraints import ReadFileConstraint, FileReadingSession
+from mentask.core.constraints import FileReadingSession, ReadFileConstraint
+
 
 def test_constraint_detects_large_file():
     constraint = ReadFileConstraint.check_request(total_lines=5000, existing_line_offset=1)
@@ -20,13 +20,13 @@ def test_session_tracks_progress():
 def test_session_detects_loop_after_3_attempts():
     session = FileReadingSession("dummy.txt", total_lines=500)
     session.add_chunk(1, 10, "chunk1")
-    
+
     # Simulate repeated identical chunks
     session.mark_attempt()
     assert session.should_retry() is True
-    
+
     session.mark_attempt()
     assert session.should_retry() is True
-    
+
     session.mark_attempt()
     assert session.should_retry() is False

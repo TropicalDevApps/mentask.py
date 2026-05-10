@@ -106,20 +106,23 @@ class OpenAIProvider(BaseProvider):
             role = "user" if msg.role == Role.USER else "assistant"
             if msg.role == Role.TOOL:
                 # OpenAI tool response format
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": msg.metadata.get("tool_call_id"),
-                        "content": ContextCompressor.smart_compress(str(msg.content)),
-                    }
-                )
+                tool_msg = {
+                    "role": "tool",
+                    "tool_call_id": msg.metadata.get("tool_call_id"),
+                    "content": ContextCompressor.smart_compress(str(msg.content)),
+                }
+                if msg.metadata.get("tool_name"):
+                    tool_msg["name"] = msg.metadata.get("tool_name")
+                messages.append(tool_msg)
             else:
+                compressed_content = ContextCompressor.smart_compress(str(msg.content))
                 msg_dict: dict[str, Any] = {
                     "role": role,
-                    "content": ContextCompressor.smart_compress(str(msg.content)) or "",
+                    "content": compressed_content if compressed_content else None,
                 }
 
-                # Check for tool_calls if it's an AssistantMessage                from ...schema import AssistantMessage
+                # Check for tool_calls if it's an AssistantMessage
+                from ...schema import AssistantMessage
 
                 if isinstance(msg, AssistantMessage) and msg.tool_calls:
                     msg_dict["tool_calls"] = [
@@ -300,7 +303,6 @@ class OpenAIProvider(BaseProvider):
 
         def _do_request():
             try:
-                from urllib.error import HTTPError
 
                 # Use a reasonable timeout for health checks, scaled with request_timeout
                 health_timeout = max(10, self.request_timeout // 3)

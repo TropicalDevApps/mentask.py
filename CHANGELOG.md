@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.1] - 2026-05-09
+
+### Fixed
+- **Tool Chaining (Local Models)**: Fixed a bug where local models (e.g. Ollama, Qwen) would stop generating after a tool result because of strict API constraints. The agent now properly passes the `name` attribute back in tool responses and encodes empty assistant text correctly as `null`.
+
 ## [0.26.0] - 2026-05-09
 
 ### Added

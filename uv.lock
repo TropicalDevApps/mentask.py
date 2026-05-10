@@ -680,7 +680,7 @@ wheels = [
 
 [[package]]
 name = "mentask"
-version = "0.25.2"
+version = "0.26.1"
 source = { editable = "." }
 dependencies = [
     { name = "google-genai" },

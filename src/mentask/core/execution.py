@@ -1,8 +1,10 @@
 import asyncio
-import time
-import logging
 import inspect
-from typing import Callable, Any, Dict
+import logging
+import time
+from collections.abc import Callable
+from typing import Any
+
 from rich.progress import Progress, SpinnerColumn, TimeRemainingColumn
 
 logger = logging.getLogger(__name__)
@@ -17,18 +19,18 @@ class OperationTimeout(Exception):
 class BlockingOperationManager:
     def __init__(self, global_timeout: int = 120):
         self.global_timeout = global_timeout
-        self.active_operations: Dict[str, Any] = {}
-        
+        self.active_operations: dict[str, Any] = {}
+
     async def execute_long_operation(self, op_id: str, description: str, operation: Callable, timeout_seconds: int = None) -> Any:
         timeout = timeout_seconds or self.global_timeout
-        
+
         self.active_operations[op_id] = {
             "started_at": time.time(),
             "timeout": timeout,
             "status": "running",
             "description": description
         }
-        
+
         with Progress(
             SpinnerColumn(),
             "[progress.description]{task.description}",
@@ -36,7 +38,7 @@ class BlockingOperationManager:
             transient=True
         ) as progress:
             task = progress.add_task(description, total=timeout)
-            
+
             try:
                 # We use wait_for and also update the progress bar inside a background task
                 async def update_progress():
@@ -44,9 +46,9 @@ class BlockingOperationManager:
                         elapsed = time.time() - self.active_operations[op_id]["started_at"]
                         progress.update(task, completed=min(elapsed, timeout))
                         await asyncio.sleep(0.1)
-                
+
                 progress_task = asyncio.create_task(update_progress())
-                
+
                 result = await asyncio.wait_for(
                     self._run_operation(operation),
                     timeout=timeout
@@ -55,7 +57,7 @@ class BlockingOperationManager:
                 progress.update(task, completed=timeout)
                 self.active_operations[op_id]["status"] = "completed"
                 return result
-                
+
             except asyncio.TimeoutError:
                 progress.stop()
                 self.active_operations[op_id]["status"] = "timeout"

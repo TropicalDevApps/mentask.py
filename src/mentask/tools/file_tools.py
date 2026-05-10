@@ -11,9 +11,9 @@ import shutil
 import tempfile
 from datetime import datetime
 
+from ..core.constraints import FileReadingSession, ReadFileConstraint
 from ..core.paths import get_backups_dir
 from ..core.security import ensure_safe_path
-from ..core.constraints import ReadFileConstraint, FileReadingSession
 
 FILE_SESSIONS: dict[str, FileReadingSession] = {}
 
@@ -81,9 +81,9 @@ def read_file(path: str, start_line: int = None, end_line: int = None, char_limi
         if not session:
             session = FileReadingSession(path_abs, total_lines)
             FILE_SESSIONS[path_abs] = session
-            
+
         constraint = ReadFileConstraint.check_request(total_lines, session.current_offset)
-        
+
         if start_line is None and end_line is None:
             if constraint["strategy"] == "chunked":
                 start_line = session.current_offset
@@ -115,11 +115,11 @@ def read_file(path: str, start_line: int = None, end_line: int = None, char_limi
 
         # Content loop check
         if content and content == session.last_chunk_content():
-            # If the user explicitly requested this exact chunk, it might not be a loop, 
+            # If the user explicitly requested this exact chunk, it might not be a loop,
             # but if it's identical, there's no new information.
             session.mark_attempt()
             if not session.should_retry():
-                return f"Error: Infinite loop detected. The content is identical to the last read. Please change start_line and end_line."
+                return "Error: Infinite loop detected. The content is identical to the last read. Please change start_line and end_line."
         else:
             session.add_chunk(start, end, content)
 
@@ -133,7 +133,7 @@ def read_file(path: str, start_line: int = None, end_line: int = None, char_limi
         info_header = f"--- Reading '{path}' (Lines {start} to {end} of {total_lines}) ---\n"
         if constraint["strategy"] == "chunked" and end < total_lines:
             info_header += f"[!] Note: File is large. Read next chunk with start_line={end+1}\n"
-            
+
         return info_header + content
 
     except UnicodeDecodeError:

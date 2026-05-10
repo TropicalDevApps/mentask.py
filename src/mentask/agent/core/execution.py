@@ -3,10 +3,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from ...core.execution import BlockingOperationManager, OperationTimeout
 from ...core.trust_manager import TrustManager
 from ..schema import ToolResult
 from .lsp_client import LSPClient
-from ...core.execution import BlockingOperationManager, OperationTimeout
 
 
 class ExecutionManager:
@@ -136,7 +136,7 @@ class ExecutionManager:
         import time
         async def run_tool():
             return await self.tools.call_tool(tool_call.name, tool_call.id, tool_call.arguments)
-            
+
         try:
             result = await self.operation_mgr.execute_long_operation(
                 op_id=f"tool_{tool_call.id}_{time.time()}",

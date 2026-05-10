@@ -1,18 +1,17 @@
+import asyncio
 import logging
 import os
+import time
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
 from ..core.compression import ContextSnapper
+from ..core.retry_strategy import TimeoutRecoveryManager
 from ..core.summarizer import Summarizer
 from .core.execution import ExecutionManager
 from .core.provider import ProviderManager
 from .schema import AgentTurnStatus, Message, Role
 from .tools.base import ToolRegistry
-from ..core.i18n import _
-from ..core.retry_strategy import TimeoutRecoveryManager
-import asyncio
-import time
 
 _logger = logging.getLogger("mentask")
 
@@ -41,7 +40,7 @@ class AgentOrchestrator:
         # Performance & Optimization
         self.snapper = ContextSnapper(client.model_name)
         self.summarizer = Summarizer()
-        
+
         self.timeout_recovery = TimeoutRecoveryManager()
 
     def get_session_report(self) -> dict:
@@ -51,7 +50,7 @@ class AgentOrchestrator:
             file_sessions_metrics = {path: session.metrics for path, session in FILE_SESSIONS.items()}
         except ImportError:
             file_sessions_metrics = {}
-            
+
         return {
             "timeout_stats": self.timeout_recovery.get_metrics(),
             "file_sessions": file_sessions_metrics,
@@ -172,12 +171,12 @@ class AgentOrchestrator:
             except (TimeoutError, asyncio.TimeoutError) as exc:
                 elapsed = time.time() - turn_start
                 strategy = self.timeout_recovery.handle_timeout(
-                    error=exc, 
+                    error=exc,
                     provider=getattr(self.client, 'provider', 'unknown'),
-                    elapsed=elapsed, 
+                    elapsed=elapsed,
                     current_attempt=turn_id
                 )
-                
+
                 if strategy["action"] == "retry_with_backoff":
                     wait_time = strategy["backoff_seconds"]
                     _logger.info(f"Esperando {wait_time}s antes de reintentar por timeout...")
@@ -223,7 +222,7 @@ class AgentOrchestrator:
                 if m.role == Role.ASSISTANT and m.tool_calls:
                     previous_calls = [(tc.name, tc.arguments) for tc in m.tool_calls]
                     break
-            
+
             if current_calls == previous_calls:
                 _logger.warning("Redundant tool calls detected. Forcing critique.")
                 critique_prompt = (
