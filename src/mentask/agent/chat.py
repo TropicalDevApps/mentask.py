@@ -100,7 +100,7 @@ class ChatAgent:
         if self.local_mode:
             self.config.settings["local_mode"] = True
             if not any(x in self.model_name.lower() for x in ["ollama", "local", "lms"]):
-                self.model_name = "ollama:llama3"
+                self.model_name = "ollama:qwen3.5"
 
         self.edit_mode = self.config.settings.get("edit_mode", "manual")
         self.session = deps.session or SessionManager(self.config, self.model_name)
@@ -111,7 +111,7 @@ class ChatAgent:
 
             if not isinstance(self.session.provider, OllamaProvider):
                 # Re-initialize session with forced local provider if factory failed
-                self.model_name = "ollama:llama3"
+                self.model_name = "ollama:qwen3.5"
                 self.session = SessionManager(self.config, self.model_name)
 
         self.session.metrics = getattr(self.session, "metrics", None) or TokenTracker(model_name=self.model_name)
