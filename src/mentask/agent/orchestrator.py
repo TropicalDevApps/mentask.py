@@ -47,6 +47,7 @@ class AgentOrchestrator:
         """Returns observability metrics for the current session."""
         try:
             from ..tools.file_tools import FILE_SESSIONS
+
             file_sessions_metrics = {path: session.metrics for path, session in FILE_SESSIONS.items()}
         except ImportError:
             file_sessions_metrics = {}
@@ -172,9 +173,9 @@ class AgentOrchestrator:
                 elapsed = time.time() - turn_start
                 strategy = self.timeout_recovery.handle_timeout(
                     error=exc,
-                    provider=getattr(self.client, 'provider', 'unknown'),
+                    provider=getattr(self.client, "provider", "unknown"),
                     elapsed=elapsed,
-                    current_attempt=turn_id
+                    current_attempt=turn_id,
                 )
 
                 if strategy["action"] == "retry_with_backoff":
