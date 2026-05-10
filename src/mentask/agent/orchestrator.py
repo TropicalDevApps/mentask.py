@@ -180,8 +180,8 @@ class AgentOrchestrator:
 
                 if strategy["action"] == "retry_with_backoff":
                     wait_time = strategy["backoff_seconds"]
-                    _logger.info(f"Esperando {wait_time}s antes de reintentar por timeout...")
-                    yield {"type": "info", "content": f"Timeout network, reintentando en {wait_time}s..."}
+                    _logger.info(f"Waiting {wait_time}s before retrying due to timeout...")
+                    yield {"type": "info", "content": f"Network timeout, retrying in {wait_time}s..."}
                     await asyncio.sleep(wait_time)
                     continue
                 elif strategy["action"] == "reduce_context_and_retry":
@@ -189,15 +189,15 @@ class AgentOrchestrator:
                         keep = [history[0]] + history[-19:]
                         history.clear()
                         history.extend(keep)
-                    _logger.info("Reducido contexto por timeout, reintentando...")
-                    yield {"type": "info", "content": "Reduciendo contexto debido a timeout del modelo..."}
+                    _logger.info("Context reduced due to timeout, retrying...")
+                    yield {"type": "info", "content": "Reducing context due to model timeout..."}
                     continue
                 elif strategy["action"] == "simple_retry":
                     if strategy.get("retries_left", 0) > 0:
-                        yield {"type": "info", "content": "Reintento simple tras timeout..."}
+                        yield {"type": "info", "content": "Simple retry after timeout..."}
                         continue
                     else:
-                        _logger.error(f"Critical error during turn {turn_id}: timeouts exhaustos ({exc})")
+                        _logger.error(f"Critical error during turn {turn_id}: timeouts exhausted ({exc})")
                         yield {"type": "error", "content": f"Critical model failure: {exc}"}
                         break
             except Exception as exc:

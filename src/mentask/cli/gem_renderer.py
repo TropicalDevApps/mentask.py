@@ -309,7 +309,7 @@ class GemStyleRenderer:
         # We expect accumulated text from ChatAgent
         self.live_text = chunk
 
-        # Detección inline de segmentos completos
+        # Inline detection of full segments
         if "</think>" in self.live_text or "</thinking>" in self.live_text:
             self._maybe_commit_think_block()
 
