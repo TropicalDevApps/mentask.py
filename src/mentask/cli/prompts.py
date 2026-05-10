@@ -41,17 +41,28 @@ class PromptEngine:
 
     # Powerline / Nerd Font characters
     @property
-    def L_HALF(self) -> str: return "" if self.use_nerdfonts else ""
+    def L_HALF(self) -> str:
+        return "" if self.use_nerdfonts else ""
+
     @property
-    def R_HALF(self) -> str: return "" if self.use_nerdfonts else ""
+    def R_HALF(self) -> str:
+        return "" if self.use_nerdfonts else ""
+
     @property
-    def L_TRI(self) -> str: return "" if self.use_nerdfonts else "<"
+    def L_TRI(self) -> str:
+        return "" if self.use_nerdfonts else "<"
+
     @property
-    def R_TRI(self) -> str: return "" if self.use_nerdfonts else ">"
+    def R_TRI(self) -> str:
+        return "" if self.use_nerdfonts else ">"
+
     @property
-    def L_ANGLE(self) -> str: return "" if self.use_nerdfonts else "("
+    def L_ANGLE(self) -> str:
+        return "" if self.use_nerdfonts else "("
+
     @property
-    def R_ANGLE(self) -> str: return "" if self.use_nerdfonts else ")"
+    def R_ANGLE(self) -> str:
+        return "" if self.use_nerdfonts else ")"
 
     def _render_atomic(self, segments: list[PromptSegment]) -> Text:
         """Renders segments in 'Atomic' pill style."""
@@ -59,7 +70,7 @@ class PromptEngine:
         if not segments:
             return res
 
-        for i, seg in enumerate(segments):
+        for _i, seg in enumerate(segments):
             content = f"{seg.icon} {seg.text}" if seg.icon else seg.text
             res.append(self.L_HALF, style=seg.bg or seg.fg)
             res.append(f" {content} ", style=f"{seg.fg} on {seg.bg}" if seg.bg else seg.fg)
@@ -131,7 +142,9 @@ class PromptEngine:
 
         # 1. OS Icon
         os_icon = "󰀵" if os.name == "posix" else "󰖳"
-        segments.append(PromptSegment("", "black", self.theme.brand_primary, icon=os_icon if self.use_nerdfonts else ""))
+        segments.append(
+            PromptSegment("", "black", self.theme.brand_primary, icon=os_icon if self.use_nerdfonts else "")
+        )
 
         # 2. Security Status
         if is_trusted:
@@ -176,7 +189,9 @@ class PromptEngine:
         cost_str = f"${cost:.3f}" if cost >= 0.01 else f"${cost:.4f}"
         if cost == 0:
             cost_str = "$0.000"
-        segments.append(PromptSegment(cost_str, "black", self.theme.cost_badge, icon="󰠠" if self.use_nerdfonts else "$"))
+        segments.append(
+            PromptSegment(cost_str, "black", self.theme.cost_badge, icon="󰠠" if self.use_nerdfonts else "$")
+        )
 
         renderer = self.STYLES.get(style_name, self._render_atomic)
         return renderer(segments)
