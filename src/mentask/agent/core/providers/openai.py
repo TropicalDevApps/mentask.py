@@ -303,7 +303,6 @@ class OpenAIProvider(BaseProvider):
 
         def _do_request():
             try:
-
                 # Use a reasonable timeout for health checks, scaled with request_timeout
                 health_timeout = max(10, self.request_timeout // 3)
                 with urllib.request.urlopen(req, timeout=health_timeout):
