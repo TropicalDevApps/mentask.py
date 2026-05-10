@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ..cli.gem_renderer import GemStyleRenderer
+    from ..cli.gem_renderer import GemStyleRenderer as CliRenderer
 
 from ..cli.console import console
 from ..cli.contextual_prompts import (
@@ -278,7 +278,7 @@ class ChatAgent:
                 ]
         return user_input
 
-    async def _stream_response(self, user_input: str, renderer: "GemStyleRenderer") -> None:
+    async def _stream_response(self, user_input: str, renderer: "CliRenderer") -> None:
         """Core logic: feeds input to orchestrator and updates UI."""
         renderer.reset_turn()
         processed_input = self._process_input(user_input)
@@ -292,11 +292,7 @@ class ChatAgent:
             self._handle_stream_event(renderer, status, event_type, event)
 
     def _handle_stream_event(
-        self,
-        renderer: "GemStyleRenderer",
-        status: AgentTurnStatus | None,
-        event_type: str | None,
-        event: dict[str, Any],
+        self, renderer: "CliRenderer", status: AgentTurnStatus | None, event_type: str | None, event: dict[str, Any]
     ) -> None:
         if status == AgentTurnStatus.THINKING:
             renderer.show_thinking()
@@ -437,7 +433,7 @@ class ChatAgent:
 
         return sessions, history_data, is_new
 
-    async def _handle_command_input(self, user_input: str, renderer: "GemStyleRenderer") -> bool:
+    async def _handle_command_input(self, user_input: str, renderer: "CliRenderer") -> bool:
         if not user_input.startswith("/"):
             return False
 
@@ -547,7 +543,7 @@ class ChatAgent:
         )
         self.active_renderer.console.print()
 
-    async def _handle_user_turn(self, user_input: str, renderer: "GemStyleRenderer") -> None:
+    async def _handle_user_turn(self, user_input: str, renderer: "CliRenderer") -> None:
         self.session_messages += 1
         renderer.reset_turn()
 
