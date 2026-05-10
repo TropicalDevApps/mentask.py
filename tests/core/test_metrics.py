@@ -90,3 +90,53 @@ def test_total_tokens(clean_tracker):
 
     tracker.add_usage(200, 100)
     assert tracker.total_tokens == 450
+
+
+@patch("os.remove")
+@patch("os.path.exists")
+@patch.object(TokenTracker, "_get_log_path", return_value="/fake/path/usage_log.json")
+def test_reset_historical_file_exists(mock_get_log_path, mock_exists, mock_remove, clean_tracker):
+    """Verifies that reset_historical removes log file when it exists and resets counters."""
+    mock_exists.return_value = True
+
+    clean_tracker.historical_prompt = 1000
+    clean_tracker.historical_candidate = 500
+    clean_tracker.total_saved_tokens = 200
+    clean_tracker.total_prompt_tokens = 100
+    clean_tracker.total_candidate_tokens = 50
+
+    clean_tracker.reset_historical()
+
+    mock_exists.assert_called_once_with("/fake/path/usage_log.json")
+    mock_remove.assert_called_once_with("/fake/path/usage_log.json")
+
+    assert clean_tracker.historical_prompt == 0
+    assert clean_tracker.historical_candidate == 0
+    assert clean_tracker.total_saved_tokens == 0
+    assert clean_tracker.total_prompt_tokens == 0
+    assert clean_tracker.total_candidate_tokens == 0
+
+
+@patch("os.remove")
+@patch("os.path.exists")
+@patch.object(TokenTracker, "_get_log_path", return_value="/fake/path/usage_log.json")
+def test_reset_historical_file_not_exists(mock_get_log_path, mock_exists, mock_remove, clean_tracker):
+    """Verifies that reset_historical does not attempt to remove file when it doesn't exist and resets counters."""
+    mock_exists.return_value = False
+
+    clean_tracker.historical_prompt = 1000
+    clean_tracker.historical_candidate = 500
+    clean_tracker.total_saved_tokens = 200
+    clean_tracker.total_prompt_tokens = 100
+    clean_tracker.total_candidate_tokens = 50
+
+    clean_tracker.reset_historical()
+
+    mock_exists.assert_called_once_with("/fake/path/usage_log.json")
+    mock_remove.assert_not_called()
+
+    assert clean_tracker.historical_prompt == 0
+    assert clean_tracker.historical_candidate == 0
+    assert clean_tracker.total_saved_tokens == 0
+    assert clean_tracker.total_prompt_tokens == 0
+    assert clean_tracker.total_candidate_tokens == 0
