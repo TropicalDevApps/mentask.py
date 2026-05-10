@@ -83,7 +83,7 @@ async def _run_async_chatbot(args):
     from ..agent.chat import ChatAgent
 
     agent = ChatAgent(session_id=args.session_id, local_mode=args.local)
-    _ = GracefulShutdown(agent)
+    _shutdown = GracefulShutdown(agent)
     loop = asyncio.get_running_loop()
     try:
         await agent.start()

@@ -78,9 +78,54 @@ class SessionManager:
 
             # Determine provider name for the prompt
             provider_class = self.provider.__class__.__name__.replace("Provider", "")
-            provider_id = "google" if provider_class == "Gemini" else "openai"
 
-            # If it's OpenAIProvider, it might be a specific one like 'deepseek'
+            # --- Start Improved Setup UI ---
+            console.print(
+                Panel.fit(
+                    f"[bold yellow]󰚌 SETUP REQUIRED: {provider_class.upper()}[/bold yellow]\n"
+                    f"No valid credentials found for the active engine.",
+                    border_style="yellow",
+                )
+            )
+
+            from ...core.models_hub import hub
+
+            hub.sync_local()
+            local_clis = [m for m in hub._local_models.values() if m["_provider"]["id"] == "cli"]
+            ollama_running = any(m["_provider"]["id"] == "ollama" for m in hub._local_models.values())
+
+            choices = ["k", "m"]
+            menu = "[bold]Options:[/bold]\n"
+            menu += "  [bold cyan]k[/bold] - Enter API Key manually\n"
+            if local_clis or ollama_running:
+                menu += "  [bold green]l[/bold] - Use a local agent (Ollama/CLI Bridge)\n"
+                choices.append("l")
+            menu += "  [bold magenta]m[/bold] - Switch to a different provider\n"
+
+            console.print(menu)
+            action = Prompt.ask("Action", choices=choices, default="k")
+
+            if action == "l":
+                # List local models
+                options = list(hub._local_models.keys())
+                for i, m in enumerate(options, 1):
+                    console.print(f"  {i}. {m}")
+                idx = int(Prompt.ask("Select model #", choices=[str(i + 1) for i in range(len(options))], default="1"))
+                selected = options[idx - 1]
+                # Force prefix if needed
+                if selected in [m["id"] for m in hub._local_models.values() if m["_provider"]["id"] == "cli"]:
+                    await self.switch_model(f"cli:{selected}")
+                else:
+                    await self.switch_model(f"ollama:{selected}")
+                return await self.setup_api()
+
+            if action == "m":
+                new_model = Prompt.ask("Enter model ID (e.g. deepseek:deepseek-chat, openai:gpt-4o)")
+                await self.switch_model(new_model)
+                return await self.setup_api()
+
+            # Default: Manual Key entry
+            provider_id = "google" if provider_class == "Gemini" else "openai"
             if provider_class == "OpenAI" and ":" in self.model_name:
                 provider_id = self.model_name.split(":")[0].lower()
 
@@ -98,6 +143,7 @@ class SessionManager:
 
             # Re-try setup with new key
             return await self.provider.setup()
+            # --- End Improved Setup UI ---
 
         # Log active provider
         source = getattr(self.provider, "key_source", "Unknown")
