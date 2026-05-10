@@ -239,10 +239,10 @@ class TestConfigManagerApiKey:
             cm = ConfigManager(_mock_console)
             cm.console = MagicMock()
 
-            result = cm.save_api_key("dummy-testing-value-only")
+            result = cm.save_api_key("x-test-value-x")
 
             assert result is True
-            mock_set.assert_called_once_with("mentask", "GOOGLE_API_KEY", "dummy-testing-value-only")
+            mock_set.assert_called_once_with("mentask", "GOOGLE_API_KEY", "x-test-value-x")
             cm.console.print.assert_called_once()
             assert "[success]" in str(cm.console.print.call_args)
 
@@ -251,7 +251,7 @@ class TestConfigManagerApiKey:
             cm = ConfigManager(_mock_console)
             cm.console = MagicMock()
 
-            result = cm.save_api_key("  dummy-testing-value-only  \n", "OpenAI")
+            result = cm.save_api_key("  x-test-value-x  \n", "OpenAI")
 
             assert result is True
-            mock_set.assert_called_once_with("mentask", "OPENAI_API_KEY", "dummy-testing-value-only")
+            mock_set.assert_called_once_with("mentask", "OPENAI_API_KEY", "x-test-value-x")
