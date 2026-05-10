@@ -187,12 +187,8 @@ class ExecutionManager:
             return result
 
         try:
-
-            def _read_file_sync() -> str:
-                with open(path, encoding="utf-8") as handle:
-                    return handle.read()
-
-            code = await asyncio.to_thread(_read_file_sync)
+            with open(path, encoding="utf-8") as handle:
+                code = handle.read()
             diagnostics = await self.lsp.check_file(path, code)
             if diagnostics:
                 diag_msg = "\n\n[LSP DIAGNOSTICS - Syntax/Lint Errors Detected]:\n"

@@ -227,6 +227,7 @@ def edit_file(path: str, find_text: str, replace_text: str) -> str:
 
             # 1. Verify original is valid
             import contextlib
+
             with contextlib.suppress(SyntaxError):
                 ast.parse(content)  # If already broken, we warn but allow edit if it aims to fix it
 
