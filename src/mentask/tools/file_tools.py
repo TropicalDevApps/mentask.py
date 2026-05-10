@@ -5,7 +5,6 @@ Provides guarded operations for reading and substituting code within existing fi
 It does NOT execute scripts or handle file parsing logic beyond plain text.
 """
 
-import contextlib
 import difflib
 import os
 import shutil
