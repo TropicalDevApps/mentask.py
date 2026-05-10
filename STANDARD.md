@@ -1,5 +1,9 @@
 # Repository Standard
 
+`mentask.py` is the current reference repository for hygiene, Git discipline, architecture boundaries, and release readiness across this workspace.
+
+This document defines the minimum standard that other repositories should converge toward.
+
 ## 1. Repository Shape
 
 Required structure:

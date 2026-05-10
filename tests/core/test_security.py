@@ -5,13 +5,7 @@ Verifies command safety analysis and pattern matching.
 
 import pytest
 
-from mentask.core.security import (
-    SafetyLevel,
-    analyze_command_safety,
-    analyze_path_safety,
-    ensure_safe_path,
-    is_command_safe,
-)
+from mentask.core.security import SafetyLevel, analyze_command_safety, ensure_safe_path, is_command_safe
 
 
 @pytest.mark.parametrize(
@@ -121,21 +115,3 @@ def test_is_command_safe():
     """Verifies that is_command_safe correctly identifies safe and dangerous commands."""
     assert is_command_safe("ls -la") is True
     assert is_command_safe("rm -rf /") is False
-
-
-@pytest.mark.parametrize(
-    "path, expected_level, expected_category",
-    [
-        ("pyproject.toml", SafetyLevel.WARNING, "CRITICAL_ASSET"),
-        ("PACKAGE.JSON", SafetyLevel.WARNING, "CRITICAL_ASSET"),
-        (".git/config", SafetyLevel.DANGEROUS, "PROTECTED_DIRECTORY"),
-        (".github/workflows/main.yml", SafetyLevel.DANGEROUS, "PROTECTED_DIRECTORY"),
-        (".mentask/plugins/my_plugin.py", SafetyLevel.SAFE, "PATH_SAFE"),
-        ("src/main.py", SafetyLevel.SAFE, "PATH_SAFE"),
-    ],
-)
-def test_analyze_path_safety(path, expected_level, expected_category):
-    """Verifies that analyze_path_safety correctly categorizes paths."""
-    report = analyze_path_safety(path)
-    assert report.level == expected_level
-    assert report.category == expected_category

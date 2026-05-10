@@ -76,11 +76,7 @@ class SubagentTool(BaseTool):
 
         return new_registry
 
-    async def execute(self, **kwargs) -> ToolResult:
-        mission_name = kwargs.get("mission_name", "unknown")
-        specialist_type = kwargs.get("specialist_type", "explorer")
-        prompt = kwargs.get("prompt", "")
-
+    async def execute(self, mission_name: str, specialist_type: str, prompt: str) -> ToolResult:
         blueprint = BLUEPRINTS.get(specialist_type.lower())
         if not blueprint:
             return ToolResult(
@@ -140,7 +136,7 @@ class SubagentTool(BaseTool):
 
         except Exception as e:
             _logger.exception(f"Critical failure in subagent mission {mission_name}")
-            return ToolResult(tool_call_id="", content=f"Subagent mission failed: {str(e)}", is_error=True)
+            return ToolResult(content=f"Subagent mission failed: {str(e)}", is_error=True)
 
     def _extract_verdict(self, text: str) -> str:
         if "VERDICT: PASS" in text:
