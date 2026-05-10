@@ -80,17 +80,23 @@ class SubagentTool(BaseTool):
         blueprint = BLUEPRINTS.get(specialist_type.lower())
         if not blueprint:
             return ToolResult(
+                tool_call_id="",
                 content=f"Error: Unknown specialist type '{specialist_type}'. Valid: {list(BLUEPRINTS.keys())}",
                 is_error=True,
             )
 
-        _logger.info(f"Spawning {specialist_type} subagent for mission: {mission_name}")
+        _logger.info(f"Spawned Subagent [{specialist_type.upper()}] for mission: {mission_name}")
 
         # Restricted tool registry for the subagent
         restricted_tools = self._filter_tools(specialist_type)
 
         # Create a new orchestrator for the subagent
         sub_orchestrator = AgentOrchestrator(self.session, restricted_tools, self.config)
+
+        # Use mission_name for status reporting if a callback exists
+        if sub_orchestrator.status_callback:
+            orig_callback = sub_orchestrator.status_callback
+            sub_orchestrator.status_callback = lambda msg: orig_callback(f"[{mission_name}] {msg}")
 
         # Override system instruction for this run
         sub_config = self.config.settings.copy()
@@ -101,21 +107,32 @@ class SubagentTool(BaseTool):
 
         try:
             # Run the subagent loop until completion
-            async for event in sub_orchestrator.run_query(prompt, history, config=sub_config):
+            # We wrap the user prompt to give clear instructions to the subagent instance
+            sub_prompt = f"YOUR MISSION: {mission_name}\n\nOBJECTIVE:\n{prompt}"
+
+            async for event in sub_orchestrator.run_query(sub_prompt, history, config=sub_config):
                 if event.get("type") == "text":
                     report_chunks.append(event["content"])
+                elif event.get("type") == "metrics":
+                    # Add subagent usage to main session metrics
+                    usage = event["usage"]
+                    if hasattr(self.session, "metrics") and self.session.metrics:
+                        self.session.metrics.add_usage(usage.input_tokens, usage.output_tokens)
                 elif event.get("type") == "error":
-                    return ToolResult(content=f"Subagent Error: {event['content']}", is_error=True)
+                    return ToolResult(tool_call_id="", content=f"Subagent Error: {event['content']}", is_error=True)
 
             final_report = "".join(report_chunks)
+            verdict = self._extract_verdict(final_report)
+
             formatted_report = (
-                f"### SUBAGENT REPORT: {mission_name.upper()}\n"
+                f"### MISSION COMPLETE: {mission_name.upper()}\n"
                 f"**Specialist**: {specialist_type.capitalize()}\n"
-                f"**Verdict**: {self._extract_verdict(final_report)}\n\n"
+                f"**Verdict**: {verdict}\n\n"
                 f"{final_report}"
             )
 
-            return ToolResult(content=formatted_report, is_error=False)
+            _logger.info(f"Subagent mission '{mission_name}' finished with verdict: {verdict}")
+            return ToolResult(tool_call_id="", content=formatted_report, is_error=False)
 
         except Exception as e:
             _logger.exception(f"Critical failure in subagent mission {mission_name}")
