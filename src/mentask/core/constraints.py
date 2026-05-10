@@ -6,7 +6,9 @@ class ReadFileConstraint:
     MAX_LINES = 1000
 
     @staticmethod
-    def check_request(total_lines: int, existing_line_offset: int = 1, max_lines: int = None, chunk_size: int = 500) -> dict[str, Any]:
+    def check_request(
+        total_lines: int, existing_line_offset: int = 1, max_lines: int = None, chunk_size: int = 500
+    ) -> dict[str, Any]:
         """
         Evalúa el tamaño del archivo en líneas y determina la estrategia de lectura.
         """
@@ -18,13 +20,11 @@ class ReadFileConstraint:
                 "chunk_size": chunk_size,
                 "current_offset": existing_line_offset,
                 "next_offset": existing_line_offset + chunk_size,
-                "total_size": total_lines
+                "total_size": total_lines,
             }
 
-        return {
-            "strategy": "full",
-            "size": total_lines
-        }
+        return {"strategy": "full", "size": total_lines}
+
 
 class FileReadingSession:
     """Mantiene el estado de una lectura progresiva de un archivo basado en líneas."""
@@ -35,12 +35,7 @@ class FileReadingSession:
         self.chunks_read = []
         self.current_offset = 1  # 1-indexed lines
         self.read_attempts = 0
-        self.metrics = {
-            "total_chunks_read": 0,
-            "total_bytes": 0,
-            "time_started": time.time(),
-            "chunk_timing": []
-        }
+        self.metrics = {"total_chunks_read": 0, "total_bytes": 0, "time_started": time.time(), "chunk_timing": []}
 
     def add_chunk(self, start_line: int, end_line: int, content: str) -> None:
         """Registra un nuevo chunk leído."""
@@ -49,7 +44,7 @@ class FileReadingSession:
         self.read_attempts = 0
 
         # Metrics update
-        chunk_len = len(content.encode('utf-8')) if content else 0
+        chunk_len = len(content.encode("utf-8")) if content else 0
         self.metrics["total_chunks_read"] += 1
         self.metrics["total_bytes"] += chunk_len
         elapsed = time.time() - self.metrics["time_started"]
