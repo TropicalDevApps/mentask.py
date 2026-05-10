@@ -134,6 +134,7 @@ class ExecutionManager:
 
     async def call_tool_safely(self, tool_call) -> ToolResult:
         import time
+
         async def run_tool():
             return await self.tools.call_tool(tool_call.name, tool_call.id, tool_call.arguments)
 
@@ -142,7 +143,7 @@ class ExecutionManager:
                 op_id=f"tool_{tool_call.id}_{time.time()}",
                 description=f"Executing tool: {tool_call.name}",
                 operation=run_tool,
-                timeout_seconds=60
+                timeout_seconds=60,
             )
             if isinstance(result, OperationTimeout):
                 return ToolResult(tool_call_id=tool_call.id, content=f"Tool timeout: {result}", is_error=True)
