@@ -34,7 +34,6 @@ class GracefulShutdown:
             ops = self.agent.orchestrator.executor.operation_mgr.active_operations
             for op_id in list(ops.keys()):
                 logger.info(f"Canceling operation: {op_id}")
-            sys.exit(130)
 
         if hasattr(self.agent, "save_checkpoint"):
             self.agent.save_checkpoint()

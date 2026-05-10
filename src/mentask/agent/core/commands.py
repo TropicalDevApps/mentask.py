@@ -309,7 +309,7 @@ class CommandHandler:
                 coros = [self.agent.session.provider.check_health(m) for m in batch]
                 batch_results = await asyncio.gather(*coros, return_exceptions=True)
 
-                for m_id, res in zip(batch, batch_results, strict=True):
+                for m_id, res in zip(batch, batch_results, strict=False):
                     if isinstance(res, tuple):
                         results[m_id] = res
                     else:
@@ -322,7 +322,7 @@ class CommandHandler:
 
         return f"[success]Verification complete.[/success] [bold]{sum(1 for r in results.values() if r[0])}[/bold] models are available."
 
-    async def _cmd_discover(self, args: list[str]) -> Table | str:
+    async def _discover(self, args: list[str]) -> Table | str:
         """Searches and displays models from models.dev Hub."""
         from ...core.models_hub import hub
 
@@ -584,7 +584,6 @@ class CommandHandler:
 
         state = "ON" if is_readonly else "OFF"
         return f"[success]Read-only mode turned [bold]{state}[/bold][/success]"
-
 
     def _cmd_artifacts(self, args: list[str]) -> str | Table | bool:
         """Lists or expands tool artifacts."""
