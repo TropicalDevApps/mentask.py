@@ -1,4 +1,6 @@
-from mentask.core.compression import ContextCompressor
+from unittest.mock import patch
+
+from mentask.core.compression import ContextCompressor, ContextSnapper
 
 
 def test_smart_compress_basic():
@@ -114,3 +116,37 @@ def test_smart_compress_code_replacer_edge_cases():
     # No language, no body, no newline
     content = "```"
     assert ContextCompressor.smart_compress(content) == "```\n\n```"
+
+
+@patch("mentask.core.models_hub.ModelsHub.sync")
+def test_get_token_status_safe(mock_sync):
+    snapper = ContextSnapper("default")
+    status = snapper.get_token_status(64000)
+    assert status["tokens"] == 64000
+    assert status["limit"] == 128000
+    assert status["percentage"] == 50.0
+    assert status["is_dangerous"] is False
+
+
+@patch("mentask.core.models_hub.ModelsHub.sync")
+def test_get_token_status_dangerous(mock_sync):
+    snapper = ContextSnapper("default")
+    status = snapper.get_token_status(120000)
+    assert status["tokens"] == 120000
+    assert status["limit"] == 128000
+    assert status["percentage"] == 93.75
+    assert status["is_dangerous"] is True
+
+
+@patch("mentask.core.models_hub.ModelsHub.sync")
+def test_get_token_status_boundary(mock_sync):
+    snapper = ContextSnapper("default")
+
+    # Exactly 90% is not dangerous according to current_tokens > (self.limit * 0.90)
+    limit = 128000
+    status = snapper.get_token_status(int(limit * 0.90))
+    assert status["is_dangerous"] is False
+
+    # Just above 90%
+    status = snapper.get_token_status(int(limit * 0.90) + 1)
+    assert status["is_dangerous"] is True
