@@ -226,11 +226,11 @@ def edit_file(path: str, find_text: str, replace_text: str) -> str:
             import ast
 
             # 1. Verify original is valid
-            try:
-                ast.parse(content)
-            except SyntaxError as e:
+            import contextlib
+
+            with contextlib.suppress(SyntaxError):
                 # If already broken, we warn but allow edit if it aims to fix it
-                pass
+                ast.parse(content)
 
             # 2. Verify result is valid
             new_content = content.replace(find_text, replace_text, 1)
