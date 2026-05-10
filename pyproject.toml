@@ -70,6 +70,4 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 
 [dependency-groups]
-dev = [
-    "pytest-cov>=7.1.0",
-]
+dev = []
