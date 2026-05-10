@@ -17,6 +17,7 @@ async def test_execution_timeout():
     assert isinstance(result, OperationTimeout)
     assert result.op_id == "test_op"
 
+
 @pytest.mark.asyncio
 async def test_execution_success():
     mgr = BlockingOperationManager(global_timeout=5)
