@@ -26,8 +26,7 @@ class GracefulShutdown:
         logger.warning("\nSIGINT recibido - deteniendo gracefully...")
         self.interrupted = True
 
-        if hasattr(self.agent, "orchestrator") and hasattr(self.agent.orchestrator, "executor"):
-            if hasattr(self.agent.orchestrator.executor, "operation_mgr"):
+        if hasattr(self.agent, "orchestrator") and hasattr(self.agent.orchestrator, "executor") and hasattr(self.agent.orchestrator.executor, "operation_mgr"):
                 ops = self.agent.orchestrator.executor.operation_mgr.active_operations
                 for op_id in list(ops.keys()):
                     logger.info(f"Cancelando operación: {op_id}")
@@ -79,7 +78,7 @@ async def _run_async_chatbot(args):
     from ..agent.chat import ChatAgent
 
     agent = ChatAgent(session_id=args.session_id, local_mode=args.local)
-    shutdown = GracefulShutdown(agent)
+    _shutdown = GracefulShutdown(agent)
     loop = asyncio.get_running_loop()
     try:
         await agent.start()
