@@ -8,9 +8,9 @@ import pytest
 from mentask.core.security import (
     SafetyLevel,
     analyze_command_safety,
+    analyze_path_safety,
     ensure_safe_path,
     is_command_safe,
-    analyze_path_safety,
 )
 
 
