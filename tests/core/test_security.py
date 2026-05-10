@@ -3,9 +3,17 @@ Unit tests for the mentask Security module.
 Verifies command safety analysis and pattern matching.
 """
 
+from unittest import mock
+
 import pytest
 
-from mentask.core.security import SafetyLevel, analyze_command_safety, ensure_safe_path
+from mentask.core.security import (
+    SafetyLevel,
+    analyze_command_safety,
+    analyze_path_safety,
+    ensure_safe_path,
+    is_command_safe,
+)
 
 
 @pytest.mark.parametrize(
@@ -109,3 +117,77 @@ def test_whitelist_fallback_paths():
     report = analyze_command_safety("my_custom_script.sh")
     assert report.level == SafetyLevel.NOTICE
     assert report.category == "GENERIC_COMMAND"
+
+
+def test_analyze_path_safety():
+    """Verifies that paths are correctly analyzed for safety."""
+    report = analyze_path_safety("pyproject.toml")
+    assert report.level == SafetyLevel.WARNING
+
+    report = analyze_path_safety(".git/config")
+    assert report.level == SafetyLevel.DANGEROUS
+
+    report = analyze_path_safety(".mentask/plugins/my_plugin.py")
+    assert report.level == SafetyLevel.SAFE
+
+    report = analyze_path_safety("src/main.py")
+    assert report.level == SafetyLevel.SAFE
+
+
+def test_is_command_safe():
+    """Verifies the legacy wrapper returns a boolean."""
+    assert is_command_safe("ls") is True
+    assert is_command_safe("rm -rf /") is False
+
+
+def test_ensure_safe_path_value_error():
+    """Verifies ensure_safe_path handles cross-drive paths correctly."""
+    with (
+        mock.patch("os.path.commonpath", side_effect=ValueError),
+        pytest.raises(PermissionError, match="different drive"),
+    ):
+        ensure_safe_path("/mock/outside.txt")
+
+
+def test_ensure_safe_path_windows_normcase():
+    """Verifies ensure_safe_path uses normcase on Windows."""
+    with (
+        mock.patch("os.name", "nt"),
+        mock.patch("os.path.normcase", side_effect=lambda x: x.lower()) as mock_normcase,
+        mock.patch("os.path.commonpath", return_value="/mock/cwd"),
+        mock.patch("os.getcwd", return_value="/mock/cwd"),
+        mock.patch("os.path.abspath", return_value="/mock/cwd/file.txt"),
+        mock.patch("os.path.realpath", side_effect=lambda x: x),
+    ):
+        ensure_safe_path("file.txt")
+        assert mock_normcase.call_count == 2
+
+
+def test_analyze_command_safety_complex():
+    """Verifies that analyze_command_safety handles complex commands properly."""
+    report = analyze_command_safety("ls -la | grep mentask")
+    assert report.level == SafetyLevel.NOTICE
+    assert report.category == "COMPLEX_COMMAND"
+    assert "pipes or redirections" in report.description.lower()
+
+
+def test_analyze_command_safety_whitelist():
+    """Verifies that analyze_command_safety handles whitelisted commands properly."""
+    report = analyze_command_safety("echo hello")
+    assert report.level == SafetyLevel.SAFE
+    assert report.category == "WHITELISTED"
+    assert "informative or safe command" in report.description.lower()
+
+
+def test_analyze_command_safety_generic():
+    """Verifies that analyze_command_safety handles generic commands properly."""
+    report = analyze_command_safety("my_custom_tool --flag")
+    assert report.level == SafetyLevel.NOTICE
+    assert report.category == "GENERIC_COMMAND"
+    assert "standard shell command" in report.description.lower()
+
+
+def test_analyze_command_safety_dangerous_patterns():
+    """Explicitly tests analyze_command_safety for dangerous patterns directly."""
+    report = analyze_command_safety("RM -RF /")
+    assert report.level == SafetyLevel.DANGEROUS
