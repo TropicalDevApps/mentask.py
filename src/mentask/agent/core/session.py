@@ -9,6 +9,7 @@ import os
 from collections.abc import AsyncGenerator
 from typing import Any  # noqa: UP035
 
+from rich.panel import Panel
 from rich.prompt import Prompt
 
 from ...cli.console import console
@@ -208,8 +209,8 @@ class SessionManager:
                             if len(content) > 2000:
                                 content = content[:2000] + "..."
                             files_context += f"\nFile: {path}\n```\n{content}\n```\n"
-                    except Exception:
-                        pass
+                    except (OSError, UnicodeDecodeError) as e:
+                        _logger.warning(f"Failed to read recent file {path} for compaction context: {e}")
             continuation_text += files_context
 
         new_history.append(Message(role=Role.USER, content=continuation_text))
