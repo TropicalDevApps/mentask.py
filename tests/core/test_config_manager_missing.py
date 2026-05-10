@@ -25,38 +25,42 @@ def test_load_settings_corrupt_global_json(tmp_path):
 
 def test_load_settings_corrupt_local_json(tmp_path):
     _mock_console.reset_mock()
-    with patch("mentask.core.config_manager.get_config_path", return_value="/tmp/nonexistent"):
-        with patch("os.getcwd", return_value=str(tmp_path)):
-            local_dir = tmp_path / ".mentask"
-            local_dir.mkdir()
-            local_settings = local_dir / "settings.json"
+    with (
+        patch("mentask.core.config_manager.get_config_path", return_value="/tmp/nonexistent"),
+        patch("os.getcwd", return_value=str(tmp_path)),
+    ):
+        local_dir = tmp_path / ".mentask"
+        local_dir.mkdir()
+        local_settings = local_dir / "settings.json"
 
-            with open(local_settings, "w") as f:
-                f.write("NOT VALID JSON {{{")
+        with open(local_settings, "w") as f:
+            f.write("NOT VALID JSON {{{")
 
-            ConfigManager(_mock_console)
-            error_calls = [
-                call
-                for call in _mock_console.print.call_args_list
-                if "Error loading local .mentask/settings.json" in str(call)
-            ]
-            assert len(error_calls) == 1
+        ConfigManager(_mock_console)
+        error_calls = [
+            call
+            for call in _mock_console.print.call_args_list
+            if "Error loading local .mentask/settings.json" in str(call)
+        ]
+        assert len(error_calls) == 1
 
 
 def test_load_settings_keyring_error_fallback(tmp_path):
     _mock_console.reset_mock()
-    with patch("mentask.core.config_manager.get_config_path", return_value="/tmp/nonexistent"):
-        with patch("os.getcwd", return_value=str(tmp_path)):
-            with patch("keyring.get_password", side_effect=Exception("Keyring failed")):
-                with patch.dict(os.environ, {"GOOGLE_API_KEY": "env-fallback-key"}):
-                    cm = ConfigManager(_mock_console)
-                    assert cm.settings.get("google_api_key") == "env-fallback-key"
-                    error_calls = [
-                        call
-                        for call in _mock_console.print.call_args_list
-                        if "Error accessing keyring for google_api_key" in str(call)
-                    ]
-                    assert len(error_calls) >= 1
+    with (
+        patch("mentask.core.config_manager.get_config_path", return_value="/tmp/nonexistent"),
+        patch("os.getcwd", return_value=str(tmp_path)),
+        patch("keyring.get_password", side_effect=Exception("Keyring failed")),
+        patch.dict(os.environ, {"GOOGLE_API_KEY": "env-fallback-key"}),
+    ):
+        cm = ConfigManager(_mock_console)
+        assert cm.settings.get("google_api_key") == "env-fallback-key"
+        error_calls = [
+            call
+            for call in _mock_console.print.call_args_list
+            if "Error accessing keyring for google_api_key" in str(call)
+        ]
+        assert len(error_calls) >= 1
 
 
 def test_load_api_key_return_source(tmp_path):
@@ -78,19 +82,20 @@ def test_load_api_key_return_source(tmp_path):
 
         # Test 3: Env var with return_source
         cm.settings["anthropic_api_key"] = ""
-        with patch("keyring.get_password", return_value=None):
-            with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "env-key"}):
-                key, source = cm.load_api_key("anthropic", return_source=True)
-                assert key == "env-key"
-                assert source == "Environment Variable"
+        with patch("keyring.get_password", return_value=None), patch.dict(os.environ, {"ANTHROPIC_API_KEY": "env-key"}):
+            key, source = cm.load_api_key("anthropic", return_source=True)
+            assert key == "env-key"
+            assert source == "Environment Variable"
 
         # Test 4: Fallback Google env var with return_source
         cm.settings["google_api_key"] = ""
-        with patch("keyring.get_password", return_value=None):
-            with patch.dict(os.environ, {"GEMINI_API_KEY": "gemini-env-key"}, clear=True):
-                key, source = cm.load_api_key("google", return_source=True)
-                assert key == "gemini-env-key"
-                assert source == "Environment Variable"
+        with (
+            patch("keyring.get_password", return_value=None),
+            patch.dict(os.environ, {"GEMINI_API_KEY": "gemini-env-key"}, clear=True),
+        ):
+            key, source = cm.load_api_key("google", return_source=True)
+            assert key == "gemini-env-key"
+            assert source == "Environment Variable"
 
         # Test 5: No key found with return_source
         cm.settings["deepseek_api_key"] = ""
@@ -105,17 +110,17 @@ def test_load_api_key_keyring_error(tmp_path):
     with patch("mentask.core.config_manager.get_config_path", return_value="/tmp/nonexistent"):
         cm = ConfigManager(_mock_console)
         cm.settings["google_api_key"] = "STORED_IN_KEYRING"
-        with patch("keyring.get_password", side_effect=Exception("Keyring read failed")):
-            with patch.dict(os.environ, {"GOOGLE_API_KEY": "env-after-keyring-fail"}):
-                key = cm.load_api_key("google")
-                assert key == "env-after-keyring-fail"
+        with (
+            patch("keyring.get_password", side_effect=Exception("Keyring read failed")),
+            patch.dict(os.environ, {"GOOGLE_API_KEY": "env-after-keyring-fail"}),
+        ):
+            key = cm.load_api_key("google")
+            assert key == "env-after-keyring-fail"
 
-                error_calls = [
-                    call
-                    for call in _mock_console.print.call_args_list
-                    if "Error accessing keyring for google" in str(call)
-                ]
-                assert len(error_calls) >= 1
+            error_calls = [
+                call for call in _mock_console.print.call_args_list if "Error accessing keyring for google" in str(call)
+            ]
+            assert len(error_calls) >= 1
 
 
 def test_detect_provider_others(tmp_path):
@@ -204,18 +209,20 @@ def test_save_settings_keyring_error(tmp_path):
 
 def test_load_settings_local_secrets_warning(tmp_path):
     _mock_console.reset_mock()
-    with patch("mentask.core.config_manager.get_config_path", return_value="/tmp/nonexistent"):
-        with patch("os.getcwd", return_value=str(tmp_path)):
-            local_dir = tmp_path / ".mentask"
-            local_dir.mkdir()
-            local_settings = local_dir / "settings.json"
+    with (
+        patch("mentask.core.config_manager.get_config_path", return_value="/tmp/nonexistent"),
+        patch("os.getcwd", return_value=str(tmp_path)),
+    ):
+        local_dir = tmp_path / ".mentask"
+        local_dir.mkdir()
+        local_settings = local_dir / "settings.json"
 
-            with open(local_settings, "w") as f:
-                json.dump({"google_api_key": "some-secret"}, f)
+        with open(local_settings, "w") as f:
+            json.dump({"google_api_key": "some-secret"}, f)
 
-            ConfigManager(_mock_console)
-            warning_calls = [call for call in _mock_console.print.call_args_list if "Security Warning" in str(call)]
-            assert len(warning_calls) >= 1
+        ConfigManager(_mock_console)
+        warning_calls = [call for call in _mock_console.print.call_args_list if "Security Warning" in str(call)]
+        assert len(warning_calls) >= 1
 
 
 def test_save_api_key_success(tmp_path):
