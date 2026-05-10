@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.27.1] - 2026-05-10
+
+### Fixed
+- **Integrated 11 Pull Requests**: Successfully merged and resolved conflicts for PRs #133 through #143, bringing 100% test coverage to `security.py` and enhancing overall test robustness.
+- **Diagnostic Fixes**: Resolved all remaining static analysis errors in `SubagentTool`, `ToolRegistry`, and `SessionManager` reported by Zed.
+- **API Reliability**: Standardized `ToolCall` and `ToolResult` attribute access across all providers.
+
 ## [0.27.0] - 2026-05-09
 
 ### Added
