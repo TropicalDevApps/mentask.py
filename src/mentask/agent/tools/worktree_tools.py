@@ -1,6 +1,5 @@
 import logging
 import os
-import shlex
 import subprocess
 
 from pydantic import BaseModel, Field
@@ -40,7 +39,7 @@ class EnterWorktreeTool(BaseTool):
                 cmd = ["git", "worktree", "add", "-b", branch_name, worktree_path]
 
             # 3. Execute git worktree add
-            result = subprocess.run(cmd, check=True, capture_output=True, encoding="utf-8")
+            _ = subprocess.run(cmd, check=True, capture_output=True, encoding="utf-8")
 
             # 4. Change current working directory to the new worktree
             os.chdir(worktree_path)

@@ -9,6 +9,7 @@ import os
 from collections.abc import AsyncGenerator
 from typing import Any  # noqa: UP035
 
+from rich.panel import Panel
 from rich.prompt import Prompt
 
 from ...cli.console import console
