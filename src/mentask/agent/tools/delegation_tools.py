@@ -14,7 +14,7 @@ _logger = logging.getLogger("mentask")
 class SubagentInput(BaseModel):
     mission_name: str = Field(..., description="A short descriptive name for the sub-task")
     specialist_type: str = Field(
-        ..., description="The type of specialist to spawn. Valid values: 'explorer', 'verifier'"
+        ..., description="The type of specialist to spawn. Valid values: 'explorer', 'verifier', 'generalist'"
     )
     prompt: str = Field(..., description="The specific objective, context, and expected output for the subagent")
 
@@ -27,9 +27,10 @@ class SubagentTool(BaseTool):
 
     name = "delegate_mission"
     description = (
-        "Spawns a specialized subagent (Explorer or Verifier) to handle a sub-task autonomously. "
+        "Spawns a specialized subagent (Explorer, Verifier, or Generalist) to handle a sub-task autonomously. "
         "The subagent will perform its mission and return a final comprehensive report. "
-        "Use 'explorer' for deep research and 'verifier' for adversarial testing of changes."
+        "Use 'explorer' for deep research, 'verifier' for adversarial testing of changes, "
+        "and 'generalist' for complex tasks that require file modification."
     )
     input_schema = SubagentInput
 
@@ -41,6 +42,12 @@ class SubagentTool(BaseTool):
     def _filter_tools(self, specialist_type: str) -> ToolRegistry:
         """Creates a restricted tool registry for the specialist."""
         new_registry = ToolRegistry()
+
+        if specialist_type == "generalist":
+            # Generalist gets access to everything
+            for name, tool in self.tools.get_all_tools().items():
+                new_registry.register(tool)
+            return new_registry
 
         # Base tools allowed for everyone (read-only + communication)
         allowed_base = {
@@ -60,7 +67,7 @@ class SubagentTool(BaseTool):
             pass
         elif specialist_type == "verifier":
             # Verifier needs to run tests
-            allowed_base.update({"shell", "python_repl"})
+            allowed_base.update({"execute_command", "python_repl"})
 
         for name in allowed_base:
             tool = self.tools.get_tool(name)
