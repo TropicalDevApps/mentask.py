@@ -131,7 +131,7 @@ def read_file(path: str, start_line: int = None, end_line: int = None, char_limi
 
         info_header = f"--- Reading '{path}' (Lines {start} to {end} of {total_lines}) ---\n"
         if constraint["strategy"] == "chunked" and end < total_lines:
-            info_header += f"[!] Note: File is large. Read next chunk with start_line={end+1}\n"
+            info_header += f"[!] Note: File is large. Read next chunk with start_line={end + 1}\n"
 
         return info_header + content
 
