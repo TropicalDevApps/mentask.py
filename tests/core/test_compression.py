@@ -189,3 +189,31 @@ def test_compress_code_exhaustive():
     # Test Python without language specified - shouldn't touch comments
     python_no_lang = "# comment\nprint('hello')  # inline"
     assert ContextCompressor.compress_code(python_no_lang) == "# comment\nprint('hello')  # inline"
+
+
+def test_code_replacer_direct():
+    import re
+    # Create a mock match object
+    text = "```python\n# comment\nx = 1\n```"
+    match = re.search(r"```(\w*)\n?(.*?)(?:```|$)", text, flags=re.DOTALL)
+
+    result = ContextCompressor.code_replacer(match)
+    assert result == "```python\nx = 1\n```"
+
+
+def test_code_replacer_empty_lang():
+    import re
+    text = "```\n// comment\nx = 1\n```"
+    match = re.search(r"```(\w*)\n?(.*?)(?:```|$)", text, flags=re.DOTALL)
+
+    result = ContextCompressor.code_replacer(match)
+    assert result == "```\n// comment\nx = 1\n```"
+
+
+def test_code_replacer_empty_body():
+    import re
+    text = "```python\n```"
+    match = re.search(r"```(\w*)\n?(.*?)(?:```|$)", text, flags=re.DOTALL)
+
+    result = ContextCompressor.code_replacer(match)
+    assert result == "```python\n\n```"
