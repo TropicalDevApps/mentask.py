@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from mentask.core.compression import ContextCompressor, ContextSnapper
 
 
@@ -129,24 +131,38 @@ def test_should_snap():
     assert snapper.should_snap(64_001)
 
 
-def test_get_token_status():
-    # ContextSnapper sets limit for "default" model to 128_000.
+@patch("mentask.core.models_hub.ModelsHub.sync")
+def test_get_token_status_safe(mock_sync):
+    snapper = ContextSnapper("default")
+    status = snapper.get_token_status(64000)
+    assert status["tokens"] == 64000
+    assert status["limit"] == 128000
+    assert status["percentage"] == 50.0
+    assert status["is_dangerous"] is False
+
+
+@patch("mentask.core.models_hub.ModelsHub.sync")
+def test_get_token_status_dangerous(mock_sync):
+    snapper = ContextSnapper("default")
+    status = snapper.get_token_status(120000)
+    assert status["tokens"] == 120000
+    assert status["limit"] == 128000
+    assert status["percentage"] == 93.75
+    assert status["is_dangerous"] is True
+
+
+@patch("mentask.core.models_hub.ModelsHub.sync")
+def test_get_token_status_boundary(mock_sync):
     snapper = ContextSnapper("default")
 
-    # Safe count (e.g. 50% of 128_000)
-    status_safe = snapper.get_token_status(64_000)
-    assert status_safe["tokens"] == 64_000
-    assert status_safe["limit"] == 128_000
-    assert status_safe["percentage"] == 50.0
-    assert not status_safe["is_dangerous"]
+    # Exactly 90% is not dangerous according to current_tokens > (self.limit * 0.90)
+    limit = 128000
+    status = snapper.get_token_status(int(limit * 0.90))
+    assert status["is_dangerous"] is False
 
-    # Dangerous count (> 90% of 128_000, i.e., > 115_200)
-    status_danger = snapper.get_token_status(115_201)
-    assert status_danger["tokens"] == 115_201
-    assert status_danger["limit"] == 128_000
-    # percentage will be round(115201/128000*100, 2)
-    assert status_danger["percentage"] >= 90.0
-    assert status_danger["is_dangerous"]
+    # Just above 90%
+    status = snapper.get_token_status(int(limit * 0.90) + 1)
+    assert status["is_dangerous"] is True
 
 
 def test_compress_code_exhaustive():
