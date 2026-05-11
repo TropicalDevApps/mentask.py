@@ -238,7 +238,6 @@ class TestConfigManagerApiKey:
         with patch("keyring.set_password") as mock_set:
             cm = ConfigManager(_mock_console)
             cm.console = MagicMock()
-<<<<<<< HEAD
             result = cm.save_api_key("default-key")
             assert result is True
             mock_set.assert_called_once_with("mentask", "GOOGLE_API_KEY", "default-key")
