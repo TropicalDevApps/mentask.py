@@ -54,6 +54,6 @@ def manage_ollama():
         process.terminate()
         process.wait()
 
-    @pytest.fixture
-    def local_model_name():
+@pytest.fixture
+def local_model_name():
     return "ollama:qwen3.5"
