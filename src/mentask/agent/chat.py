@@ -575,6 +575,17 @@ class ChatAgent:
             total_turn = self.turn_tokens_prompt + self.turn_tokens_candidate
             summary = f"{total_turn:,} tokens" if total_turn > 0 else ""
             renderer.print_metrics(summary)
+            
+            # Update and show status bar
+            cost = self.metrics.calculate_cost(
+                self.metrics.total_prompt_tokens, self.metrics.total_candidate_tokens
+            )
+            renderer.update_status_bar(
+                tokens=self.metrics.total_prompt_tokens + self.metrics.total_candidate_tokens,
+                cost=cost
+            )
+            renderer.print_status_bar()
+            
             self._save_history()
         except KeyboardInterrupt:
             # Check if stream is active before ending
@@ -711,13 +722,6 @@ class ChatAgent:
         if HAS_PT and KeyBindings and PromptSession and patch_stdout:
             kb = KeyBindings()
 
-            @kb.add("c-o")
-            def _expand_last(event):
-                """Expand the last tool artifact on Ctrl+O."""
-                if patch_stdout:
-                    with patch_stdout(raw=True):
-                        renderer.expand_artifact(-1)
-
             # Initialize completer with dynamic data
             # In local mode, we sync local models once at start
             if self.local_mode:
@@ -744,7 +748,7 @@ class ChatAgent:
             session = PromptSession(key_bindings=kb, completer=self._completer)
         else:
             renderer.print_warning(
-                "Interactive features (Ctrl+O) disabled.\n"
+                "Interactive features disabled.\n"
                 "  Install: [bold white]pip install prompt_toolkit[/bold white]"
             )
 
@@ -760,6 +764,14 @@ class ChatAgent:
 
                 user_prompt_rich = renderer.prompt_engine.build_user_prompt(
                     style, os.getcwd(), is_trusted, cost, model_id=self.model_name
+                )
+                
+                # Update status bar data before each turn
+                renderer.update_status_bar(
+                    model=self.model_name,
+                    mode=self.edit_mode,
+                    tokens=self.metrics.total_prompt_tokens + self.metrics.total_candidate_tokens,
+                    cost=cost
                 )
 
                 if HAS_PT and session and patch_stdout:
