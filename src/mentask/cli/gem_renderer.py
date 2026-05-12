@@ -152,7 +152,7 @@ class GemStyleRenderer:
         console: Console,
         theme_name: str = "indigo",
         stream_mode: str = "continuous",
-        stream_delay: float = self.TYPEWRISER_UNTYPE_DELAY,
+        stream_delay: float | None = None,
         use_nerdfonts: bool = True,
     ) -> None:
         self.console = console
@@ -160,7 +160,7 @@ class GemStyleRenderer:
         self.live_text = ""
         self._live: Live | None = None
         self._streaming = False
-        self._stream_delay = stream_delay
+        self._stream_delay = stream_delay if stream_delay is not None else self.TYPEWRISER_UNTYPE_DELAY
         self.username = getpass.getuser()
         self.stream_mode = stream_mode
         self._label_printed = False
