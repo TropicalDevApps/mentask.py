@@ -124,13 +124,25 @@ class ContextManager:
     # ------------------------------------------------------------------
     # System Instruction Builder
     # ------------------------------------------------------------------
-    def build_system_instruction(self, include_blueprint: bool = False) -> str:
+    async def get_relevant_context(self, query: str, orchestrator: Any) -> str:
+        """Fetches relevant context from selective memory via side-query."""
+        try:
+            return await self.memory.find_relevant_memories(query, orchestrator)
+        except Exception as e:
+            _logger.warning("Failed to fetch selective memory context: %s", e)
+            return ""
+
+    def build_system_instruction(self, include_blueprint: bool = False, relevant_memory: str = "") -> str:
         """Assembles the system instruction.
         'include_blueprint' should only be True on initial turn or if specifically requested.
+        'relevant_memory' is pre-fetched context from selective memory.
         """
         # Base context
         base_context = _("sys.context", os=f"{platform.system()} {platform.release()}", cwd=os.getcwd())
         full_instruction = f"{base_context}\n\n"
+
+        if relevant_memory:
+            full_instruction += f"{relevant_memory}\n\n"
 
         if include_blueprint:
             try:

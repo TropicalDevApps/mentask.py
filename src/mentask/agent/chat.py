@@ -232,7 +232,7 @@ class ChatAgent:
         """Sets the callback for real-time status/debug logging."""
         self.orchestrator.status_callback = logger_func
 
-    def _build_config(self) -> dict[str, Any]:
+    def _build_config(self, relevant_memory: str = "") -> dict[str, Any]:
         """Builds a provider-agnostic configuration dictionary."""
         schemas = self.tools.get_all_schemas()
         temp = self.config.settings.get("temperature", 0.7)
@@ -240,7 +240,7 @@ class ChatAgent:
         # Only include blueprint on the very first turn to save tokens
         is_first_turn = self.session_messages == 0
         full_instruction = (
-            f"{self.system_prompt}\n\n{self.context.build_system_instruction(include_blueprint=is_first_turn)}"
+            f"{self.system_prompt}\n\n{self.context.build_system_instruction(include_blueprint=is_first_turn, relevant_memory=relevant_memory)}"
         )
 
         return {
@@ -291,7 +291,13 @@ class ChatAgent:
         """Core logic: feeds input to orchestrator and updates UI."""
         renderer.reset_turn()
         processed_input = self._process_input(user_input)
-        config = self._build_config()
+
+        # Selective Memory via Side-Query (Reference Synergy Implementation)
+        relevant_memory = ""
+        if self.session_messages > 0 or self.local_mode:  # Don't bother on first turn if empty
+             relevant_memory = await self.context.get_relevant_context(user_input, self.orchestrator)
+
+        config = self._build_config(relevant_memory=relevant_memory)
 
         async for event in self.orchestrator.run_query(
             processed_input, self.messages, config=config, confirmation_callback=renderer.ask_confirmation
@@ -575,17 +581,14 @@ class ChatAgent:
             total_turn = self.turn_tokens_prompt + self.turn_tokens_candidate
             summary = f"{total_turn:,} tokens" if total_turn > 0 else ""
             renderer.print_metrics(summary)
-            
+
             # Update and show status bar
-            cost = self.metrics.calculate_cost(
-                self.metrics.total_prompt_tokens, self.metrics.total_candidate_tokens
-            )
+            cost = self.metrics.calculate_cost(self.metrics.total_prompt_tokens, self.metrics.total_candidate_tokens)
             renderer.update_status_bar(
-                tokens=self.metrics.total_prompt_tokens + self.metrics.total_candidate_tokens,
-                cost=cost
+                tokens=self.metrics.total_prompt_tokens + self.metrics.total_candidate_tokens, cost=cost
             )
             renderer.print_status_bar()
-            
+
             self._save_history()
         except KeyboardInterrupt:
             # Check if stream is active before ending
@@ -748,8 +751,7 @@ class ChatAgent:
             session = PromptSession(key_bindings=kb, completer=self._completer)
         else:
             renderer.print_warning(
-                "Interactive features disabled.\n"
-                "  Install: [bold white]pip install prompt_toolkit[/bold white]"
+                "Interactive features disabled.\n  Install: [bold white]pip install prompt_toolkit[/bold white]"
             )
 
         while self.running:
@@ -765,13 +767,13 @@ class ChatAgent:
                 user_prompt_rich = renderer.prompt_engine.build_user_prompt(
                     style, os.getcwd(), is_trusted, cost, model_id=self.model_name
                 )
-                
+
                 # Update status bar data before each turn
                 renderer.update_status_bar(
                     model=self.model_name,
                     mode=self.edit_mode,
                     tokens=self.metrics.total_prompt_tokens + self.metrics.total_candidate_tokens,
-                    cost=cost
+                    cost=cost,
                 )
 
                 if HAS_PT and session and patch_stdout:
