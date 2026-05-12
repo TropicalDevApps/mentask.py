@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import shlex
 import uuid
 from collections.abc import AsyncGenerator
@@ -12,6 +13,17 @@ from ...schema import Message, Role, ToolCall, UsageMetrics
 from .base import BaseProvider
 
 _logger = logging.getLogger("mentask")
+
+# Patterns to ignore in stderr (repetitive system warnings)
+_IGNORED_STDERR_PATTERNS = [
+    r"Windows 10 detected",
+    r"Windows 11 is recommended",
+    r"Ripgrep is not available",
+    r"Falling back to GrepTool",
+    r"True color \(24-bit\) support not detected",
+    r"DEP0190",  # Node.js deprecation warning for shell option
+    r"Use `node --trace-deprecation",
+]
 
 
 # Alias map: user-facing shorthand → list of candidate binary names (in priority order)
@@ -198,6 +210,10 @@ class CLIProvider(BaseProvider):
                         line = str(line_bytes)
 
                     if is_stderr:
+                        # Filter out ignored patterns
+                        if any(re.search(p, line) for p in _IGNORED_STDERR_PATTERNS):
+                            continue
+
                         # Yield stderr as text but only if it looks like an error or a useful warning
                         if line.strip():
                             yield {"type": "text", "content": f"[stderr] {line}"}

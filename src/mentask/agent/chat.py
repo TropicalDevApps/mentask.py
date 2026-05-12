@@ -239,9 +239,7 @@ class ChatAgent:
 
         # Only include blueprint on the very first turn to save tokens
         is_first_turn = self.session_messages == 0
-        full_instruction = (
-            f"{self.system_prompt}\n\n{self.context.build_system_instruction(include_blueprint=is_first_turn, relevant_memory=relevant_memory)}"
-        )
+        full_instruction = f"{self.system_prompt}\n\n{self.context.build_system_instruction(include_blueprint=is_first_turn, relevant_memory=relevant_memory)}"
 
         return {
             "temperature": temp,
@@ -295,7 +293,7 @@ class ChatAgent:
         # Selective Memory via Side-Query (Reference Synergy Implementation)
         relevant_memory = ""
         if self.session_messages > 0 or self.local_mode:  # Don't bother on first turn if empty
-             relevant_memory = await self.context.get_relevant_context(user_input, self.orchestrator)
+            relevant_memory = await self.context.get_relevant_context(user_input, self.orchestrator)
 
         config = self._build_config(relevant_memory=relevant_memory)
 
@@ -582,12 +580,14 @@ class ChatAgent:
             summary = f"{total_turn:,} tokens" if total_turn > 0 else ""
             renderer.print_metrics(summary)
 
-            # Update and show status bar
+            # Update status bar data before each turn
             cost = self.metrics.calculate_cost(self.metrics.total_prompt_tokens, self.metrics.total_candidate_tokens)
             renderer.update_status_bar(
                 tokens=self.metrics.total_prompt_tokens + self.metrics.total_candidate_tokens, cost=cost
             )
-            renderer.print_status_bar()
+
+            # Unify status bar and divider into one call
+            renderer.print_turn_divider(model=self.model_name)
 
             self._save_history()
         except KeyboardInterrupt:
@@ -599,7 +599,6 @@ class ChatAgent:
             renderer.print_error(str(exc))
         finally:
             renderer.stop_thinking()
-            renderer.print_turn_divider(model=self.model_name)
 
     async def close(self):
         """Cleanup resources."""
@@ -695,6 +694,7 @@ class ChatAgent:
         renderer = GemStyleRenderer(
             console, theme_name=current_theme, stream_delay=stream_delay, use_nerdfonts=nf_enabled
         )
+        renderer.show_thinking_details = self.config.settings.get("show_thinking", True)
         self.active_renderer = renderer
         self.set_status_logger(renderer.print_status)
 
