@@ -9,6 +9,7 @@ import logging
 import os
 import platform
 from pathlib import Path
+from typing import Any
 
 from ...core.i18n import _
 from ...core.memory_manager import MemoryManager
