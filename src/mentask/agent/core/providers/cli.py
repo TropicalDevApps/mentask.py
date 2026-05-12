@@ -4,6 +4,7 @@ import logging
 import shlex
 import uuid
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Any
 
 from ....core.compression import ContextCompressor
@@ -13,6 +14,29 @@ from .base import BaseProvider
 _logger = logging.getLogger("mentask")
 
 
+# Alias map: user-facing shorthand → list of candidate binary names (in priority order)
+_CLI_ALIAS_MAP: dict[str, list[str]] = {
+    "gemini": ["gemini", "gemini-cli"],
+    "gemini-cli": ["gemini-cli", "gemini"],
+    "codex": ["codex"],
+    "opencode": ["opencode"],
+    "claude": ["claude"],
+    "aider": ["aider"],
+}
+
+
+def _resolve_binary(name: str) -> str | None:
+    """Resolves a CLI alias or binary name to its full path. Returns None if not found."""
+    import shutil
+
+    candidates = _CLI_ALIAS_MAP.get(name.lower(), [name])
+    for candidate in candidates:
+        path = shutil.which(candidate)
+        if path:
+            return path
+    return None
+
+
 class CLIProvider(BaseProvider):
     """
     Provider that bridges MentAsk to external CLI agents (e.g., gemini-cli, codex).
@@ -20,23 +44,33 @@ class CLIProvider(BaseProvider):
     """
 
     def __init__(self, model_name: str, config: Any):
-        # We strip the 'cli:' prefix if present
-        pure_cmd = model_name.split(":", 1)[1] if ":" in model_name and model_name.startswith("cli:") else model_name
+        # Strip 'cli:' prefix if present
+        pure_cmd = model_name.removeprefix("cli:")
         super().__init__(pure_cmd, config)
-        # cli_command can be just the binary 'gemini-cli' or a template 'gemini-cli --system "..." {prompt}'
+        # cli_command is the user-facing alias or a full template string
         self.cli_command = pure_cmd
+        # Resolved binary path (set in setup())
+        self._binary_path: str | None = None
+        # Display name for renderer
+        self.display_name = pure_cmd
 
     async def setup(self) -> bool:
-        import shutil
-
-        # Extract binary from command (first part)
+        # If the command is a template string (contains spaces or {prompt}), extract the binary
         try:
-            binary = shlex.split(self.cli_command)[0]
-            if shutil.which(binary) is None:
-                _logger.error(f"CLI binary '{binary}' not found in PATH.")
-                return False
+            first_token = shlex.split(self.cli_command)[0]
         except Exception:
+            first_token = self.cli_command
+
+        resolved = _resolve_binary(first_token)
+        if resolved is None:
+            _logger.error(
+                f"CLI binary '{first_token}' not found in PATH. "
+                f"Tried aliases: {_CLI_ALIAS_MAP.get(first_token.lower(), [first_token])}"
+            )
             return False
+
+        self._binary_path = resolved
+        _logger.info(f"CLI Bridge: resolved '{first_token}' → '{resolved}'")
         return True
 
     def _build_prompt(self, history: list[Message], tools_schema: list[dict[str, Any]], system_instruction: str) -> str:
@@ -85,6 +119,37 @@ class CLIProvider(BaseProvider):
         prompt_parts.append("\n### YOUR RESPONSE (AGENT):")
         return "\n".join(prompt_parts)
 
+    def _build_cli_args(self, full_prompt: str) -> list[str]:
+        """
+        Builds the argv list for the subprocess.
+        Uses the resolved binary path and injects non-interactive flags per known CLI.
+        """
+        binary = self._binary_path or self.cli_command
+        binary_name = Path(binary).stem.lower()  # e.g. 'gemini', 'gemini-cli', 'codex'
+
+        # Non-interactive / pipe-friendly flags per known CLI tool
+        # These prevent the CLI from opening a TUI or waiting for keyboard input
+        _NON_INTERACTIVE_FLAGS: dict[str, list[str]] = {
+            "gemini": ["-p"],           # gemini -p "<prompt>"
+            "gemini-cli": ["-p"],
+            "codex": ["--full-auto", "-q"],  # codex --full-auto -q "<prompt>"
+            "opencode": ["run"],        # opencode run "<prompt>"
+            "claude": ["-p"],           # claude -p "<prompt>"
+            "aider": ["--message"],     # aider --message "<prompt>"
+        }
+
+        if "{prompt}" in self.cli_command:
+            # User-defined template: replace {prompt} and split
+            cmd_str = self.cli_command.replace("{prompt}", full_prompt)
+            # Replace the first token with the resolved binary path
+            parts = shlex.split(cmd_str)
+            parts[0] = binary
+            return parts
+
+        # Auto-build args from alias
+        flags = _NON_INTERACTIVE_FLAGS.get(binary_name, [])
+        return [binary, *flags, full_prompt]
+
     async def generate_stream(
         self,
         history: list[Message],
@@ -94,15 +159,10 @@ class CLIProvider(BaseProvider):
 
         system_instruction = config.get("system_instruction", "") if config else ""
         full_prompt = self._build_prompt(history, tools_schema, system_instruction)
-
-        # Build command. If {prompt} is in the string, replace it. Otherwise append.
-        if "{prompt}" in self.cli_command:
-            cmd_str = self.cli_command.replace("{prompt}", full_prompt)
-            args = shlex.split(cmd_str)
-        else:
-            args = shlex.split(self.cli_command) + [full_prompt]
+        args = self._build_cli_args(full_prompt)
 
         _logger.debug(f"Invoking CLI Bridge: {args[0]} (prompt len: {len(full_prompt)})")
+        _logger.debug(f"Full argv: {args[:3]}...")  # Only log first 3 tokens to avoid dumping the full prompt
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -175,16 +235,23 @@ class CLIProvider(BaseProvider):
             yield {"type": "error", "content": f"CLI Bridge Error: {e}"}
 
     async def list_models(self) -> list[str]:
-        # CLI models are usually dynamic or just represent the binary name
-        return [self.cli_command]
+        # Return the resolved binary path if available, else the original command
+        name = self._binary_path or self.cli_command
+        return [name]
 
     async def check_health(self, model_name: str) -> tuple[bool, str | None]:
-        import shutil
-
+        # model_name here is the user alias, not necessarily a binary name
+        alias = model_name.removeprefix("cli:")
         try:
-            binary = shlex.split(model_name)[0]
-            if shutil.which(binary) is not None:
-                return True, None
+            first_token = shlex.split(alias)[0]
         except Exception:
-            pass
-        return False, "Binary not found in PATH"
+            first_token = alias
+
+        path = _resolve_binary(first_token)
+        if path is not None:
+            return True, None
+        return False, f"Binary not found in PATH (tried: {_CLI_ALIAS_MAP.get(first_token.lower(), [first_token])})"
+
+    @property
+    def key_source(self) -> str:
+        return "local binary"
