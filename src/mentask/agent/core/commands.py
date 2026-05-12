@@ -122,6 +122,9 @@ class CommandHandler:
         elif command == "/speed":
             return self._cmd_speed(args)
         elif command == "/clear":
+            self.agent.history.reset()
+            self.agent.is_new_session = True
+            self.agent.session_messages = 0
             await self.agent.session.reset_session(self.agent._build_config())
             return f"[success]{_('cmd.clear.success')}[/success]"
         elif command == "/usage":
@@ -165,6 +168,8 @@ class CommandHandler:
             self.agent.interrupted = True
             return True
         elif command == "/reset":
+            self.agent.history.reset()
+            self.agent.is_new_session = True
             await self.agent.session.reset_session(self.agent._build_config())
             self.agent.session_messages = 0
             self.agent.session_tools = 0
@@ -283,9 +288,84 @@ class CommandHandler:
         self.agent.model_name = new_model
         await self.agent.session.switch_model(new_model)
         self.agent.config.settings["model_name"] = new_model
+
+        # Check if it's a CLI model and prompt for configuration
+        is_cli_model = new_model.startswith("cli:") or new_model in ["gemini-cli", "codex", "opencode"]
+        config_key = f"configured_{new_model.replace(':', '_')}"
+
+        if is_cli_model and not self.agent.config.settings.get(config_key, False):
+            if hasattr(self.agent, "active_renderer"):
+                wants_config = await self.agent.active_renderer.confirm_action(
+                    f"¿Desea configurar su entorno para que {new_model} funcione apropiadamente?",
+                    detail="Se insertará una instrucción en su configuración global para que funcione correctamente con Mentask.",
+                )
+                if wants_config:
+                    await self._configure_cli_agent(new_model)
+            self.agent.config.settings[config_key] = True
+
         self.agent.config.save_settings()
         await self.agent.session.reset_session(self.agent._build_config())
         return f"[success]{_('cmd.model.switched')}[/success] [bold]{new_model}[/bold]"
+
+    async def _configure_cli_agent(self, model_name: str) -> None:
+        """Generates the master instruction file for external CLI agents and updates their config."""
+        from pathlib import Path
+
+        import aiofiles
+
+        from ...core.paths import get_global_config_dir
+
+        alias = model_name.removeprefix("cli:")
+        sys_dir = get_global_config_dir()
+
+        # MENTASK.md content (optimized for tokens)
+        mentask_md_content = """# MENTASK CORE PROTOCOL (Master Instructions)
+
+You are acting as the "Brain" for Mentask. When you see `### MENTASK CORE PROTOCOL` in your prompt:
+1. **DO NOT USE NATIVE TOOLS:** Do not use your built-in tools (like run_shell_command).
+2. **USE MENTASK'S JSON PROTOCOL:** You MUST output exactly this JSON block to execute actions:
+```json
+{
+  "mentask_tool_call": {
+    "name": "<tool_name_from_mentask_schema>",
+    "arguments": {"arg1": "value"}
+  }
+}
+```
+3. **MENTASK TOOLS:**
+   - `execute_bash`: Runs system/shell commands (replaces your native shell tool).
+   - `edit_file`: Find & replace. Prefer over writing full files.
+   - `read_file`, `list_directory`, `grep_search`, `glob_find`.
+4. **WINDOWS NODE-PTY:** Ignore `Error: AttachConsole failed` tracebacks if the stdout is successful.
+"""
+
+        if "gemini" in alias:
+            # Setup for Gemini CLI
+            mentask_md_path = sys_dir / "MENTASK_GEMINI.md"
+            agent_config_path = Path.home() / ".gemini" / ".gemini" / "GEMINI.md"
+            include_ref = f"\n\n# --- MENTASK INTEGRATION ---\n# CRITICAL: ONLY read and apply the instructions in the following file IF AND ONLY IF your current prompt contains the header `### MENTASK CORE PROTOCOL`.\n# If that header is missing, ignore this integration completely and act as a standard assistant.\n# {mentask_md_path}\n"
+        else:
+            # Generic/Other CLI
+            mentask_md_path = sys_dir / f"MENTASK_{alias.upper()}.md"
+            agent_config_path = None  # We don't know where other agents store their global config yet
+            include_ref = ""
+
+        # Write the master MENTASK.md file
+        async with aiofiles.open(mentask_md_path, mode="w", encoding="utf-8") as f:
+            await f.write(mentask_md_content)
+
+        # Update the agent's global configuration file if known
+        if agent_config_path:
+            agent_config_path.parent.mkdir(parents=True, exist_ok=True)
+
+            content = ""
+            if agent_config_path.exists():
+                async with aiofiles.open(agent_config_path, encoding="utf-8") as f:
+                    content = await f.read()
+
+            if "# --- MENTASK INTEGRATION ---" not in content:
+                async with aiofiles.open(agent_config_path, mode="a", encoding="utf-8") as f:
+                    await f.write(include_ref)
 
     async def _cmd_model_configure(self) -> str:
         """Performs a health check on all available models."""
@@ -328,7 +408,7 @@ class CommandHandler:
 
         return f"[success]Verification complete.[/success] [bold]{sum(1 for r in results.values() if r[0])}[/bold] models are available."
 
-    async def _discover(self, args: list[str]) -> Table | str:
+    async def _cmd_discover(self, args: list[str]) -> Table | str:
         """Searches and displays models from models.dev Hub."""
         from ...core.models_hub import hub
 
@@ -644,7 +724,7 @@ class CommandHandler:
             except (ValueError, IndexError):
                 return f"[error]Invalid artifact index: {args[0]}[/error]"
 
-    def _cmd_sessions(self) -> Table:
+    def _cmd_sessions(self) -> Table | str:
         """Lists all stored session IDs."""
         sessions = self.agent.history.list_sessions()
         if not sessions:

@@ -85,7 +85,14 @@ class CLIProvider(BaseProvider):
         _logger.info(f"CLI Bridge: resolved '{first_token}' → '{resolved}'")
         return True
 
-    def _build_prompt(self, history: list[Message], tools_schema: list[dict[str, Any]], system_instruction: str) -> str:
+    def _build_prompt(
+        self, history: list[Message], tools_schema: list[dict[str, Any]], config: Any | None = None
+    ) -> str:
+        system_instruction = (
+            config.get("system_instruction", "")
+            if isinstance(config, dict)
+            else (getattr(config, "system_instruction", "") if config else "")
+        )
         prompt_parts = []
 
         # 1. System Instruction & Tool Schema
@@ -114,8 +121,16 @@ class CLIProvider(BaseProvider):
 
         prompt_parts.append("\n### CONVERSATION LOG")
 
-        # Only send last 10 messages to avoid shell arg limits
-        for msg in history[-10:]:
+        session_id = config.get("session_id") if isinstance(config, dict) else getattr(config, "session_id", None)
+        is_first_turn = (
+            config.get("is_first_turn", True) if isinstance(config, dict) else getattr(config, "is_first_turn", True)
+        )
+
+        # If the external CLI is maintaining state (resuming), we only send the latest message
+        # Otherwise, send last 10 messages to avoid shell arg limits
+        history_to_send = history[-1:] if (session_id and not is_first_turn) else history[-10:]
+
+        for msg in history_to_send:
             if msg.role == Role.SYSTEM:
                 continue
 
@@ -131,13 +146,22 @@ class CLIProvider(BaseProvider):
         prompt_parts.append("\n### YOUR RESPONSE (AGENT):")
         return "\n".join(prompt_parts)
 
-    def _build_cli_args(self, full_prompt: str) -> tuple[list[str], bool]:
+    def _build_cli_args(self, full_prompt: str, config: Any | None = None) -> tuple[list[str], bool]:
         """
         Builds the argv list for the subprocess.
         Returns a tuple of (args, uses_stdin).
         """
         binary = self._binary_path or self.cli_command
         binary_name = Path(binary).stem.lower()
+
+        session_id = None
+        is_first_turn = False
+        if isinstance(config, dict):
+            session_id = config.get("session_id")
+            is_first_turn = config.get("is_first_turn", False)
+        elif config is not None and hasattr(config, "session_id"):
+            session_id = getattr(config, "session_id", None)  # noqa: B009
+            is_first_turn = getattr(config, "is_first_turn", False)
 
         # Non-interactive / pipe-friendly flags per known CLI tool
         _NON_INTERACTIVE_FLAGS: dict[str, list[str]] = {
@@ -161,7 +185,14 @@ class CLIProvider(BaseProvider):
         # Heuristic: if flags include a way to read from stdin, or if prompt is large
         # We prefer stdin for gemini specifically as we know it supports it via '-p -'
         if binary_name in ("gemini", "gemini-cli"):
-            return [binary, *flags], True
+            args = [binary]
+            if session_id:
+                if is_first_turn:
+                    args.extend(["--session-id", str(session_id)])
+                else:
+                    args.extend(["--resume", str(session_id)])
+            args.extend(flags)
+            return args, True
 
         return [binary, *flags, full_prompt], False
 
@@ -172,11 +203,15 @@ class CLIProvider(BaseProvider):
         config: Any | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
 
-        system_instruction = config.get("system_instruction", "") if config else ""
-        full_prompt = self._build_prompt(history, tools_schema, system_instruction)
-        args, use_stdin = self._build_cli_args(full_prompt)
+        full_prompt = self._build_prompt(history, tools_schema, config)
+        args, use_stdin = self._build_cli_args(full_prompt, config)
 
         _logger.debug(f"Invoking CLI Bridge: {args[0]} (prompt len: {len(full_prompt)}, stdin: {use_stdin})")
+
+        # Emit thinking status to trigger UI spinner
+        from ...schema import AgentTurnStatus
+
+        yield {"status": AgentTurnStatus.THINKING}
 
         try:
             process = await asyncio.create_subprocess_exec(

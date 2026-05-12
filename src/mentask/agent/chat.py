@@ -114,7 +114,9 @@ class ChatAgent:
                 self.model_name = "ollama:qwen3.5"
                 self.session = SessionManager(self.config, self.model_name)
 
-        self.session.metrics = getattr(self.session, "metrics", None) or TokenTracker(model_name=self.model_name)
+        self.session.metrics = getattr(self.session, "metrics", None)
+        if self.session.metrics is None:
+            self.session.metrics = TokenTracker(model_name=self.model_name)
         self.metrics = self.session.metrics
         self.context = deps.context
         self.commands = CommandHandler(self)
@@ -137,6 +139,7 @@ class ChatAgent:
         # Turn metrics tracking
         self.turn_tokens_prompt = 0
         self.turn_tokens_candidate = 0
+        self.is_new_session = True
 
         # Autocompletion
         self._completer = None
@@ -238,13 +241,16 @@ class ChatAgent:
         temp = self.config.settings.get("temperature", 0.7)
 
         # Only include blueprint on the very first turn to save tokens
-        is_first_turn = self.session_messages == 0
-        full_instruction = f"{self.system_prompt}\n\n{self.context.build_system_instruction(include_blueprint=is_first_turn, relevant_memory=relevant_memory)}"
+        # For CLI Bridge: first turn of a NEW session needs --session-id, otherwise --resume
+        is_first_turn = self.is_new_session and self.session_messages == 1
+        full_instruction = f"{self.system_prompt}\n\n{self.context.build_system_instruction(include_blueprint=self.session_messages <= 1, relevant_memory=relevant_memory)}"
 
         return {
             "temperature": temp,
             "tools": schemas,
             "system_instruction": full_instruction,
+            "session_id": self.history.current_session_id,
+            "is_first_turn": is_first_turn,
         }
 
     async def setup_api(self, interactive: bool = True) -> bool:
@@ -705,6 +711,7 @@ class ChatAgent:
 
         self.running = True
         sessions, history_data, is_new_session = self._restore_last_session()
+        self.is_new_session = is_new_session
 
         await self.session.ensure_session(self._build_config(), history=None)
         await self.orchestrator.executor.initialize()

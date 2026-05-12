@@ -33,7 +33,7 @@ mentask is designed to run locally with a minimal footprint. No cloud nonsense, 
 ---
 
 <p align="center">
-  <img src="docs/assets/shot.png" width="700" alt="mentask logo">
+  <img src="docs/assets/shot.png" width="900" alt="mentask shot">
 </p>
 
 ---
@@ -114,7 +114,7 @@ This isn't conversation. This is **autonomy**.
 
 ### Dynamic Engineering Levels (DEL)
 
-mentask v0.27.8 introduces the **Task Classifier**, which pre-flights every prompt to set the correct engineering rigor:
+mentask v0.27.9 introduces the **Task Classifier**, which pre-flights every prompt to set the correct engineering rigor:
 
 - **L0_INQUIRY**: Informational mode. Zero tool noise. Direct answers.
 - **L1_PRAGMATIC**: Speed mode. Uses direct shell commands (`cat`, `sed`, `echo`) and avoids deep mapping.

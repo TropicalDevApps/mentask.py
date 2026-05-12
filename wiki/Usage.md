@@ -8,12 +8,12 @@ mentask
 
 ## Console Output Examples
 
-### 1. Startup & Welcome (v0.27.8)
+### 1. Startup & Welcome (v0.27.9)
 
 When you launch mentask, you'll see the premium header indicating your active provider, security mode, and the newly standard **Engineering Level**:
 
 ```text
- ✦ mentask v0.27.8  ·  ollama:qwen3.5  ·  manual mode
+ ✦ mentask v0.27.9  ·  ollama:qwen3.5  ·  manual mode
  ⚡ Engineering Level: L1_PRAGMATIC
    Type /help for commands · Ctrl+C to exit
 ```

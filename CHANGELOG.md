@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.27.9] - 2026-05-12
+
+### Fixed
+- **Worktree Tools**: Fixed an `IndentationError` in `src/mentask/tools/worktree_tools.py` that prevented the CLI from starting.
+- **Improved Tooling**: Added comprehensive unit tests for worktree tools to ensure stability.
+
 ## [0.27.8] - 2026-05-12
 
 ### Added

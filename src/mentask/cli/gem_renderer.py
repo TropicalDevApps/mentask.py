@@ -195,7 +195,9 @@ class GemStyleRenderer:
         self.C_USER = self.theme.text_secondary
         self.C_TOOL = self.theme.warning
 
-    def update_status_bar(self, model: str = None, mode: str = None, tokens: int = None, cost: float = None) -> None:
+    def update_status_bar(
+        self, model: str | None = None, mode: str | None = None, tokens: int | None = None, cost: float | None = None
+    ) -> None:
         """Updates the internal data used for the status bar."""
         if model is not None:
             self._status_bar_data["model"] = model

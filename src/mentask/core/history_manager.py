@@ -36,7 +36,7 @@ class HistoryManager:
 
         self.console = ui_console or console
         self.history_dir = get_history_dir()
-        self.current_session_id = str(uuid.uuid4())[:8]
+        self.current_session_id = str(uuid.uuid4())
 
     def _deserialize_message(self, data: dict) -> Message | None:
         try:
@@ -99,6 +99,10 @@ class HistoryManager:
         except OSError as e:
             _logger.error(f"Failed to list sessions: {e}")
             return []
+
+    def reset(self) -> None:
+        """Generates a new session ID for a fresh start."""
+        self.current_session_id = str(uuid.uuid4())
 
     def delete_session(self, session_id: str) -> bool:
         """Removes a specific session file from disk."""

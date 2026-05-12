@@ -70,6 +70,14 @@ class ToolDispatcher:
         self._tool_map = {
             getattr(t, "__name__", "web_search" if isinstance(t, functools.partial) else str(t)): t for t in self._tools
         }
+
+        # Add Aliases for compatibility with external CLI Brains (e.g. Gemini CLI)
+        self._tool_map["run_shell_command"] = execute_bash
+        self._tool_map["write_file"] = edit_file  # Bridge to Mentask's surgical edit tool
+        self._tool_map["list_dir"] = list_directory
+        self._tool_map["ls"] = list_directory
+        self._tool_map["cat"] = read_file
+
         # Special handling for partials where __name__ might not be present
         if "web_search" not in self._tool_map:
             self._tool_map["web_search"] = bound_web_search
