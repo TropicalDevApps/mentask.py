@@ -377,7 +377,7 @@ class GemStyleRenderer:
         self.live_text += chunk
 
         # Inline detection of full segments
-        if "</think>" in self.live_text or "</thinking>" in self.live_text:
+        if "<think" in self.live_text or "</thinking>" in self.live_text:
             self._maybe_commit_think_block()
 
         if "```" in self.live_text:
