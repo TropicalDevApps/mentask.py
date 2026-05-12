@@ -274,7 +274,7 @@ class AgentOrchestrator:
             if current_calls and current_calls == previous_calls:
                 is_loop = True
                 loop_reason = "Repeated tool calls"
-            elif not current_calls and current_text and current_text == previous_text:
+            elif not current_calls and current_text and current_text.strip() == previous_text.strip():
                 # Only flag text loop if no tools are involved, to allow tool-using agents to talk
                 is_loop = True
                 loop_reason = "Repeated text response"
