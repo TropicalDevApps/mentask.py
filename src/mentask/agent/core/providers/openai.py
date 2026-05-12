@@ -118,7 +118,7 @@ class OpenAIProvider(BaseProvider):
                 compressed_content = ContextCompressor.smart_compress(str(msg.content))
                 msg_dict: dict[str, Any] = {
                     "role": role,
-                    "content": compressed_content if compressed_content else None,
+                    "content": compressed_content,
                 }
 
                 # Check for tool_calls if it's an AssistantMessage
@@ -138,6 +138,11 @@ class OpenAIProvider(BaseProvider):
                         }
                         for tc in msg.tool_calls
                     ]
+                    # Local models/Ollama often expect content to be strictly null if there are tool_calls and no text
+                    if not compressed_content:
+                        msg_dict["content"] = None
+                elif not compressed_content:
+                    msg_dict["content"] = ""
 
                 messages.append(msg_dict)
 
