@@ -566,7 +566,9 @@ class ChatAgent:
 
         try:
             await self._stream_response(user_input, renderer)
-            if hasattr(renderer, "end_stream"):
+            # Guard against double end_stream: _handle_stream_event may have already
+            # called it (e.g. on EXECUTING transition mid-turn).
+            if hasattr(renderer, "end_stream") and renderer._streaming:
                 renderer.end_stream()
 
             # Compact turn metrics
