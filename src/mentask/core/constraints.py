@@ -10,7 +10,7 @@ class ReadFileConstraint:
         total_lines: int, existing_line_offset: int = 1, max_lines: int = None, chunk_size: int = 500
     ) -> dict[str, Any]:
         """
-        Evalúa el tamaño del archivo en líneas y determina la estrategia de lectura.
+        Evaluates file size in lines and determines the reading strategy.
         """
         limit = max_lines or ReadFileConstraint.MAX_LINES
 
@@ -27,7 +27,7 @@ class ReadFileConstraint:
 
 
 class FileReadingSession:
-    """Mantiene el estado de una lectura progresiva de un archivo basado en líneas."""
+    """Maintains the state of a progressive line-based file read."""
 
     def __init__(self, path: str, total_lines: int):
         self.path = path
@@ -38,7 +38,7 @@ class FileReadingSession:
         self.metrics = {"total_chunks_read": 0, "total_bytes": 0, "time_started": time.time(), "chunk_timing": []}
 
     def add_chunk(self, start_line: int, end_line: int, content: str) -> None:
-        """Registra un nuevo chunk leído."""
+        """Registers a new read chunk."""
         self.chunks_read.append((start_line, end_line, content))
         self.current_offset = end_line + 1
         self.read_attempts = 0
@@ -51,19 +51,19 @@ class FileReadingSession:
         self.metrics["chunk_timing"].append((start_line, end_line, elapsed))
 
     def should_retry(self) -> bool:
-        """Determina si se debe seguir intentando leer."""
+        """Determines if reading should continue to be attempted."""
         return self.read_attempts < 3
 
     def mark_attempt(self) -> None:
-        """Registra un intento fallido o redundante."""
+        """Registers a failed or redundant attempt."""
         self.read_attempts += 1
 
     def is_complete(self) -> bool:
-        """Verifica si se ha leído todo el archivo."""
+        """Checks if the entire file has been read."""
         return self.current_offset > self.total_size
 
     def last_chunk_content(self) -> str:
-        """Retorna el contenido del último chunk leído."""
+        """Returns the content of the last read chunk."""
         if not self.chunks_read:
             return ""
         return self.chunks_read[-1][2]

@@ -8,9 +8,10 @@ from typing import Any
 from ..core.compression import ContextSnapper
 from ..core.retry_strategy import TimeoutRecoveryManager
 from ..core.summarizer import Summarizer
+from .core.classifier import TaskClassifier
 from .core.execution import ExecutionManager
 from .core.provider import ProviderManager
-from .schema import AgentTurnStatus, AssistantMessage, Message, Role
+from .schema import AgentTurnStatus, AssistantMessage, EngineeringLevel, Message, Role
 from .tools.base import ToolRegistry
 
 _logger = logging.getLogger("mentask")
@@ -36,12 +37,37 @@ class AgentOrchestrator:
         self.provider = ProviderManager(client)
         self.executor = ExecutionManager(tool_registry)
         self.trust = self.executor.trust
+        self.classifier = TaskClassifier(self.provider)
 
         # Performance & Optimization
         self.snapper = ContextSnapper(client.model_name)
         self.summarizer = Summarizer()
 
         self.timeout_recovery = TimeoutRecoveryManager()
+
+    def _get_level_instruction(self, level: EngineeringLevel) -> str:
+        """Returns specific system instructions based on the engineering level."""
+        if level == EngineeringLevel.L0_INQUIRY:
+            return (
+                "\n\n[MODE: INQUIRY (L0)]\n"
+                "This is a purely informational request. No tools or code changes are required. "
+                "Answer directly and concisely without using any architectural tools."
+            )
+        elif level == EngineeringLevel.L1_PRAGMATIC:
+            return (
+                "\n\n[MODE: PRAGMATIC (L1)]\n"
+                "This is a simple task. Avoid over-engineering. Do not perform extensive repository mapping "
+                "unless strictly necessary. Prioritize using direct shell commands (run_shell_command) or "
+                "simple file tools. If a specialized tool fails or is too complex, FALLBACK to shell commands immediately."
+            )
+        elif level == EngineeringLevel.L3_ARCHITECT:
+            return (
+                "\n\n[MODE: ARCHITECT (L3)]\n"
+                "This is a high-complexity task. You MUST perform deep analysis of the codebase before making changes. "
+                "Map the repository structure, identify dependencies, and create a formal plan in .mentask_plan.md. "
+                "Ensure maximum safety and adhere to all architectural standards."
+            )
+        return ""  # L2 is the standard behavior
 
     def get_session_report(self) -> dict:
         """Returns observability metrics for the current session."""
@@ -82,9 +108,83 @@ class AgentOrchestrator:
             _logger.error(f"Unexpected error reading plan file: {e}")
             return ""
 
-    def _build_turn_config(self, config: Any | None) -> Any | None:
+    def _build_tool_context(self, level: EngineeringLevel) -> str:
+        """
+        Generates a compact, context-aware summary of available tools for the current session.
+        Injected into the system prompt so the LLM knows WHEN and HOW to use each tool,
+        not just what its schema is.
+        """
+        cwd = os.getcwd()
+        is_git = os.path.exists(os.path.join(cwd, ".git"))
+        has_python = os.path.exists(os.path.join(cwd, "pyproject.toml")) or os.path.exists(
+            os.path.join(cwd, "setup.py")
+        )
+        has_node = os.path.exists(os.path.join(cwd, "package.json"))
+
+        lines = [
+            "\n\n## TOOL USAGE GUIDE (read before every action)",
+            f"CWD: {cwd}",
+        ]
+
+        if is_git:
+            lines.append(
+                "GIT REPO DETECTED: Use `run_shell_command` for git operations "
+                "(git log, git diff, git status). Prefer shell over read_file for git metadata."
+            )
+        if has_python:
+            lines.append(
+                "PYTHON PROJECT: Use `python_repl` for fast one-off computations, data inspection, "
+                "or import checks. Use `run_shell_command` for package ops (uv, pip, pytest)."
+            )
+        if has_node:
+            lines.append(
+                "NODE PROJECT: Use `run_shell_command` for npm/yarn/pnpm ops. "
+                "Prefer read_file for package.json inspection."
+            )
+
+        # Level-specific tool priority hints
+        if level == EngineeringLevel.L0_INQUIRY:
+            lines.append(
+                "INQUIRY MODE: DO NOT call any tools. Answer from memory and context only."
+            )
+        elif level == EngineeringLevel.L1_PRAGMATIC:
+            lines.append(
+                "PRAGMATIC MODE: Use the MINIMUM number of tools. One tool call is usually enough. "
+                "Avoid list_dir unless you don't know where the file is."
+            )
+        elif level == EngineeringLevel.L3_ARCHITECT:
+            lines.append(
+                "ARCHITECT MODE: Map the repo first (list_dir + grep_search), then write a plan. "
+                "Never edit files without reading them first. Use glob_find for pattern discovery."
+            )
+        else:  # L2
+            lines.append(
+                "STANDARD MODE: Read before writing. Use grep_search to locate symbols before editing. "
+                "Prefer edit_file over write_file for partial changes."
+            )
+
+        # Always-on tool safety rules
+        lines += [
+            "TOOL RULES:",
+            "  - read_file: use for file content. Do NOT read binary files.",
+            "  - edit_file: for partial changes. Only the EXACT lines to change.",
+            "  - write_file: only for new files or full rewrites. Destructive.",
+            "  - run_shell_command: powerful fallback for anything the specialized tools can't do.",
+            "  - python_repl: stateless per call. Variables do NOT persist between calls.",
+            "  - ask_user: ONLY when the task is genuinely ambiguous. Do not over-ask.",
+        ]
+
+        return "\n".join(lines)
+
+    def _build_turn_config(
+        self, config: Any | None, level: EngineeringLevel = EngineeringLevel.L2_STANDARD
+    ) -> Any | None:
         plan_context = self._build_plan_context()
-        if not plan_context or not config:
+        level_instruction = self._get_level_instruction(level)
+        tool_context = self._build_tool_context(level)
+        extra_instructions = f"{plan_context}{level_instruction}{tool_context}"
+
+        if not extra_instructions or not config:
             return config
 
         from copy import copy
@@ -93,9 +193,9 @@ class AgentOrchestrator:
 
         if isinstance(turn_config, dict):
             orig = turn_config.get("system_instruction", "")
-            turn_config["system_instruction"] = f"{orig}{plan_context}"
+            turn_config["system_instruction"] = f"{orig}{extra_instructions}"
         elif hasattr(turn_config, "system_instruction"):
-            turn_config.system_instruction = f"{turn_config.system_instruction}{plan_context}"
+            turn_config.system_instruction = f"{turn_config.system_instruction}{extra_instructions}"
 
         return turn_config
 
@@ -141,6 +241,12 @@ class AgentOrchestrator:
         self.active_status = AgentTurnStatus.THINKING
         turn_id = 0
 
+        # Pre-flight: Task Classification
+        self._report_status("Classifying engineering level...")
+        level = await self.classifier.classify(str(user_prompt), config=config)
+        self._report_status(f"Task classified as {level.value.upper()}")
+        yield {"type": "info", "content": f"Engineering Level: {level.value.upper()}"}
+
         while True:
             turn_id += 1
             if turn_id > self.MAX_TURNS:
@@ -154,7 +260,7 @@ class AgentOrchestrator:
 
             try:
                 turn_start = time.time()
-                turn_config = self._build_turn_config(config)
+                turn_config = self._build_turn_config(config, level=level)
                 async for event in self.provider.stream_turn(history, self.tools.get_all_schemas(), config=turn_config):
                     yield event
                     if event["type"] == "metrics":
@@ -180,8 +286,8 @@ class AgentOrchestrator:
 
                 if strategy["action"] == "retry_with_backoff":
                     wait_time = strategy["backoff_seconds"]
-                    _logger.info(f"Esperando {wait_time}s antes de reintentar por timeout...")
-                    yield {"type": "info", "content": f"Timeout network, reintentando en {wait_time}s..."}
+                    _logger.info(f"Waiting {wait_time}s before retrying due to timeout...")
+                    yield {"type": "info", "content": f"Network timeout, retrying in {wait_time}s..."}
                     await asyncio.sleep(wait_time)
                     continue
                 elif strategy["action"] == "reduce_context_and_retry":
@@ -189,15 +295,15 @@ class AgentOrchestrator:
                         keep = [history[0]] + history[-19:]
                         history.clear()
                         history.extend(keep)
-                    _logger.info("Reducido contexto por timeout, reintentando...")
-                    yield {"type": "info", "content": "Reduciendo contexto debido a timeout del modelo..."}
+                    _logger.info("Context reduced due to timeout, retrying...")
+                    yield {"type": "info", "content": "Reducing context due to model timeout..."}
                     continue
                 elif strategy["action"] == "simple_retry":
                     if strategy.get("retries_left", 0) > 0:
-                        yield {"type": "info", "content": "Reintento simple tras timeout..."}
+                        yield {"type": "info", "content": "Simple retry after timeout..."}
                         continue
                     else:
-                        _logger.error(f"Critical error during turn {turn_id}: timeouts exhaustos ({exc})")
+                        _logger.error(f"Critical error during turn {turn_id}: timeouts exhausted ({exc})")
                         yield {"type": "error", "content": f"Critical model failure: {exc}"}
                         break
             except Exception as exc:
@@ -237,20 +343,22 @@ class AgentOrchestrator:
             if current_calls and current_calls == previous_calls:
                 is_loop = True
                 loop_reason = "Repeated tool calls"
-            elif not current_calls and current_text and current_text == previous_text:
+            elif not current_calls and current_text and current_text.strip() == previous_text.strip():
                 # Only flag text loop if no tools are involved, to allow tool-using agents to talk
                 is_loop = True
                 loop_reason = "Repeated text response"
 
             if is_loop:
-                _logger.warning(f"Loop detected ({loop_reason}). Forcing critique.")
-                critique_prompt = (
-                    f"SYSTEM ALERT: Potential loop detected. Details: {loop_reason}.\n"
-                    "Please take a step back and confirm you're making forward progress. "
-                    "If not, take a step back, analyze your previous actions and rethink how you're approaching the problem. "
-                    "Avoid repeating the same tool calls or responses without new results."
+                _logger.warning(f"Loop detected ({loop_reason}). Forcing RESET.")
+                reset_prompt = (
+                    f"CRITICAL SYSTEM ALERT: Stagnation/Loop detected ({loop_reason}).\n"
+                    "You are repeating yourself without taking action. You MUST change strategy NOW:\n"
+                    "1. If you were trying to use a complex tool, use 'run_shell_command' instead.\n"
+                    "2. Stop explaining and start EXECUTING.\n"
+                    "3. If you are stuck, perform a 'list_dir' of the current path to re-orient yourself.\n"
+                    "Take a different path immediately."
                 )
-                history.append(Message(role=Role.SYSTEM, content=critique_prompt))
+                history.append(Message(role=Role.SYSTEM, content=reset_prompt))
                 yield {"status": AgentTurnStatus.THINKING}
                 continue
 
@@ -287,12 +395,10 @@ class AgentOrchestrator:
 
             if any(r.is_error for r in all_results):
                 critique_prompt = (
-                    "SYSTEM REFLECTION: One or more tools returned an error or suspicious output. "
-                    "Before proceeding, you MUST evaluate:\n"
-                    "1. Was the error expected? If not, what caused it?\n"
-                    "2. Does this invalidate your current plan?\n"
-                    "3. PROPOSE A FIX: What is the exact next step to correct this?\n\n"
-                    "Respond with your analysis and immediately issue the corrective tool calls if possible."
+                    "SYSTEM REFLECTION: Tool failure detected. "
+                    "STRATEGY CHANGE REQUIRED: If 'write_file' or 'replace' failed due to complexity, "
+                    "use 'run_shell_command' to perform the action using standard unix tools (sed, echo, cat). "
+                    "Do not repeat the failed tool call with the same arguments."
                 )
                 history.append(Message(role=Role.SYSTEM, content=critique_prompt))
                 yield {"status": AgentTurnStatus.THINKING}

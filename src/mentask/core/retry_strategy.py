@@ -74,7 +74,7 @@ class TimeoutRecoveryManager:
         self.timeout_history.append(ctx)
         strategy = ctx.get_recovery_strategy()
 
-        # Actualizar métricas
+        # Update metrics
         self.metrics_reporter["total_timeouts"] += 1
         self.metrics_reporter["timeouts_by_provider"][provider] = (
             self.metrics_reporter["timeouts_by_provider"].get(provider, 0) + 1

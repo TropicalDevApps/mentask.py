@@ -100,7 +100,7 @@ class ChatAgent:
         if self.local_mode:
             self.config.settings["local_mode"] = True
             if not any(x in self.model_name.lower() for x in ["ollama", "local", "lms"]):
-                self.model_name = "ollama:llama3"
+                self.model_name = "ollama:qwen3.5"
 
         self.edit_mode = self.config.settings.get("edit_mode", "manual")
         self.session = deps.session or SessionManager(self.config, self.model_name)
@@ -111,7 +111,7 @@ class ChatAgent:
 
             if not isinstance(self.session.provider, OllamaProvider):
                 # Re-initialize session with forced local provider if factory failed
-                self.model_name = "ollama:llama3"
+                self.model_name = "ollama:qwen3.5"
                 self.session = SessionManager(self.config, self.model_name)
 
         self.session.metrics = getattr(self.session, "metrics", None) or TokenTracker(model_name=self.model_name)
@@ -173,6 +173,15 @@ class ChatAgent:
             f"CURRENT_TIME: {timestamp} ({day_name})\n"
         )
 
+        if self.config.settings.get("readonly_mode", False):
+            self.system_prompt += (
+                "\n## READ-ONLY MODE ACTIVE\n"
+                "You are currently in a restricted READ-ONLY mode. Your primary goal is to analyze, read, and explore.\n"
+                "- DO NOT modify, delete, or overwrite any existing files or directories.\n"
+                "- You ARE permitted to create NEW files if they are necessary for your analysis or to provide the requested output (e.g., creating a report, a scratchpad, or a new script as requested).\n"
+                "- If you need to suggest changes to existing code, provide them in your response or in a new file, but DO NOT apply them to the original files.\n"
+            )
+
         self.session_messages = 0
         self.session_tools = 0
         self.session_files = 0
@@ -223,16 +232,14 @@ class ChatAgent:
         """Sets the callback for real-time status/debug logging."""
         self.orchestrator.status_callback = logger_func
 
-    def _build_config(self) -> dict[str, Any]:
+    def _build_config(self, relevant_memory: str = "") -> dict[str, Any]:
         """Builds a provider-agnostic configuration dictionary."""
         schemas = self.tools.get_all_schemas()
         temp = self.config.settings.get("temperature", 0.7)
 
         # Only include blueprint on the very first turn to save tokens
         is_first_turn = self.session_messages == 0
-        full_instruction = (
-            f"{self.system_prompt}\n\n{self.context.build_system_instruction(include_blueprint=is_first_turn)}"
-        )
+        full_instruction = f"{self.system_prompt}\n\n{self.context.build_system_instruction(include_blueprint=is_first_turn, relevant_memory=relevant_memory)}"
 
         return {
             "temperature": temp,
@@ -282,7 +289,13 @@ class ChatAgent:
         """Core logic: feeds input to orchestrator and updates UI."""
         renderer.reset_turn()
         processed_input = self._process_input(user_input)
-        config = self._build_config()
+
+        # Selective Memory via Side-Query (Reference Synergy Implementation)
+        relevant_memory = ""
+        if self.session_messages > 0 or self.local_mode:  # Don't bother on first turn if empty
+            relevant_memory = await self.context.get_relevant_context(user_input, self.orchestrator)
+
+        config = self._build_config(relevant_memory=relevant_memory)
 
         async for event in self.orchestrator.run_query(
             processed_input, self.messages, config=config, confirmation_callback=renderer.ask_confirmation
@@ -499,19 +512,19 @@ class ChatAgent:
         self.active_renderer.console.print("\n")
         self.active_renderer.console.print(
             Panel(
-                "[bold]Selecciona tu contexto de trabajo[/bold]\n"
-                + "1. 🧑‍💻 Coding (Ingeniería de software)\n"
-                + "2. 🎵 Music Production (Producción musical)\n"
-                + "3. 📊 Analysis (Análisis de datos)\n"
-                + "4. 🎨 Creative (Creativo)\n"
+                "[bold]Select your working context[/bold]\n"
+                + "1. 🧑‍💻 Coding (Software engineering)\n"
+                + "2. 🎵 Music Production (Music production)\n"
+                + "3. 📊 Analysis (Data analysis)\n"
+                + "4. 🎨 Creative (Creative)\n"
                 + "5. 💬 General (General)",
-                title="[bold cyan]Contextos Disponibles[/bold cyan]",
+                title="[bold cyan]Available Contexts[/bold cyan]",
                 border_style="cyan",
                 padding=(1, 2),
             )
         )
 
-        choice = Prompt.ask("[cyan]Selecciona contexto[/cyan]", choices=["1", "2", "3", "4", "5"], default="5")
+        choice = Prompt.ask("[cyan]Select context[/cyan]", choices=["1", "2", "3", "4", "5"], default="5")
 
         context_map = {
             "1": ContextType.CODING,
@@ -538,9 +551,9 @@ class ChatAgent:
         self.active_renderer.console.print(
             Panel(
                 f"[bold cyan]{prompt.context.value.upper()}[/bold cyan]\n\n"
-                f"[yellow]Tono:[/yellow] {prompt.tone}\n"
+                f"[yellow]Tone:[/yellow] {prompt.tone}\n"
                 f"[yellow]Constraints:[/yellow]\n" + "\n".join(f"  • {c}" for c in prompt.constraints),
-                title="[bold]Detalles del Contexto[/bold]",
+                title="[bold]Context Details[/bold]",
                 border_style="cyan",
                 padding=(1, 2),
             )
@@ -557,13 +570,25 @@ class ChatAgent:
 
         try:
             await self._stream_response(user_input, renderer)
-            if hasattr(renderer, "end_stream"):
+            # Guard against double end_stream: _handle_stream_event may have already
+            # called it (e.g. on EXECUTING transition mid-turn).
+            if hasattr(renderer, "end_stream") and renderer._streaming:
                 renderer.end_stream()
 
             # Compact turn metrics
             total_turn = self.turn_tokens_prompt + self.turn_tokens_candidate
             summary = f"{total_turn:,} tokens" if total_turn > 0 else ""
             renderer.print_metrics(summary)
+
+            # Update status bar data before each turn
+            cost = self.metrics.calculate_cost(self.metrics.total_prompt_tokens, self.metrics.total_candidate_tokens)
+            renderer.update_status_bar(
+                tokens=self.metrics.total_prompt_tokens + self.metrics.total_candidate_tokens, cost=cost
+            )
+
+            # Unify status bar and divider into one call
+            renderer.print_turn_divider(model=self.model_name)
+
             self._save_history()
         except KeyboardInterrupt:
             # Check if stream is active before ending
@@ -574,7 +599,6 @@ class ChatAgent:
             renderer.print_error(str(exc))
         finally:
             renderer.stop_thinking()
-            renderer.print_turn_divider(model=self.model_name)
 
     async def close(self):
         """Cleanup resources."""
@@ -599,6 +623,8 @@ class ChatAgent:
         # 2. Add sub-commands
         completion_dict["/theme"] = {t: None for t in themes.THEMES}
         completion_dict["/mode"] = {"auto": None, "manual": None}
+        completion_dict["/multiline"] = {"true": None, "false": None}
+        completion_dict["/readonly"] = {"true": None, "false": None}
         completion_dict["/usage"] = {"--reset": None, "-r": None}
         completion_dict["/stream"] = {"transient": None, "continuous": None}
 
@@ -668,6 +694,7 @@ class ChatAgent:
         renderer = GemStyleRenderer(
             console, theme_name=current_theme, stream_delay=stream_delay, use_nerdfonts=nf_enabled
         )
+        renderer.show_thinking_details = self.config.settings.get("show_thinking", True)
         self.active_renderer = renderer
         self.set_status_logger(renderer.print_status)
 
@@ -680,6 +707,7 @@ class ChatAgent:
         sessions, history_data, is_new_session = self._restore_last_session()
 
         await self.session.ensure_session(self._build_config(), history=None)
+        await self.orchestrator.executor.initialize()
 
         renderer.print_welcome(__version__, self.model_name, self.edit_mode)
         await self._ensure_trust(renderer)
@@ -696,13 +724,6 @@ class ChatAgent:
         session = None
         if HAS_PT and KeyBindings and PromptSession and patch_stdout:
             kb = KeyBindings()
-
-            @kb.add("c-o")
-            def _expand_last(event):
-                """Expand the last tool artifact on Ctrl+O."""
-                if patch_stdout:
-                    with patch_stdout(raw=True):
-                        renderer.expand_artifact(-1)
 
             # Initialize completer with dynamic data
             # In local mode, we sync local models once at start
@@ -730,8 +751,7 @@ class ChatAgent:
             session = PromptSession(key_bindings=kb, completer=self._completer)
         else:
             renderer.print_warning(
-                "Interactive features (Ctrl+O) disabled.\n"
-                "  Install: [bold white]pip install prompt_toolkit[/bold white]"
+                "Interactive features disabled.\n  Install: [bold white]pip install prompt_toolkit[/bold white]"
             )
 
         while self.running:
@@ -748,6 +768,14 @@ class ChatAgent:
                     style, os.getcwd(), is_trusted, cost, model_id=self.model_name
                 )
 
+                # Update status bar data before each turn
+                renderer.update_status_bar(
+                    model=self.model_name,
+                    mode=self.edit_mode,
+                    tokens=self.metrics.total_prompt_tokens + self.metrics.total_candidate_tokens,
+                    cost=cost,
+                )
+
                 if HAS_PT and session and patch_stdout:
                     from prompt_toolkit.formatted_text import ANSI
 
@@ -758,7 +786,8 @@ class ChatAgent:
 
                     with patch_stdout():
                         try:
-                            user_input = (await session.prompt_async(prompt_msg)).strip()
+                            is_multiline = self.config.settings.get("multiline_prompt", False)
+                            user_input = (await session.prompt_async(prompt_msg, multiline=is_multiline)).strip()
                         except (EOFError, KeyboardInterrupt):
                             break
                 else:

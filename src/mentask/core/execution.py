@@ -60,7 +60,7 @@ class BlockingOperationManager:
                 progress.stop()
                 self.active_operations[op_id]["status"] = "timeout"
                 elapsed = time.time() - self.active_operations[op_id]["started_at"]
-                logger.error(f"{description} - TIMEOUT después {timeout}s")
+                logger.error(f"{description} - TIMEOUT after {timeout}s")
                 return OperationTimeout(op_id=op_id, elapsed=elapsed, timeout=timeout)
             finally:
                 if op_id in self.active_operations:
