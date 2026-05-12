@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.27.5] - 2026-05-12
+
+### Added
+- **Selective Memory via Side-Query**: Implemented a lightweight "sidechain" selection mechanism to identify and inject only the most relevant memory files into the context.
+- **Memory Metadata Caching**: Introduced `.metadata_cache.json` in the memories directory to support thousands of learning files with zero performance lag.
+- **Intelligent Context Pre-selection**: Refactored `ContextManager` and `ChatAgent` to automatically pre-select relevant context based on the user query before every turn.
+
 ## [0.27.0] - 2026-05-09
 
 ### Added
