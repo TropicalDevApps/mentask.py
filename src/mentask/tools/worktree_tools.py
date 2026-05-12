@@ -25,8 +25,11 @@ def enter_worktree(branch_name: str, base_dir: str = ".mentask/worktrees") -> st
     except subprocess.CalledProcessError:
         cmd = ["git", "worktree", "add", "-b", branch_name, worktree_path]
 
-    subprocess.run(cmd, check=True, capture_output=True, encoding="utf-8")
-    os.chdir(worktree_path)
+            # 3. Execute git worktree add
+            subprocess.run(cmd, check=True, capture_output=True, encoding="utf-8")
+
+            # 4. Change current working directory to the new worktree
+            os.chdir(worktree_path)
 
     msg = f"Success: Created and entered worktree at {worktree_path} on branch {branch_name}."
     _logger.info(msg)

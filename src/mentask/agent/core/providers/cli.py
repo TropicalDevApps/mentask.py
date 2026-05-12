@@ -151,7 +151,14 @@ class CLIProvider(BaseProvider):
         Builds the argv list for the subprocess.
         Returns a tuple of (args, uses_stdin).
         """
-        binary = self._binary_path or self.cli_command
+        # Parse cli_command into its tokens (handles "python script.py" etc.)
+        try:
+            cmd_parts = shlex.split(self.cli_command)
+        except Exception:
+            cmd_parts = [self.cli_command]
+
+        binary = self._binary_path or cmd_parts[0]
+        extra_args = cmd_parts[1:]
         binary_name = Path(binary).stem.lower()
 
         session_id = None
@@ -185,7 +192,7 @@ class CLIProvider(BaseProvider):
         # Heuristic: if flags include a way to read from stdin, or if prompt is large
         # We prefer stdin for gemini specifically as we know it supports it via '-p -'
         if binary_name in ("gemini", "gemini-cli"):
-            args = [binary]
+            args = [binary, *extra_args]
             if session_id:
                 if is_first_turn:
                     args.extend(["--session-id", str(session_id)])
@@ -194,7 +201,7 @@ class CLIProvider(BaseProvider):
             args.extend(flags)
             return args, True
 
-        return [binary, *flags, full_prompt], False
+        return [binary, *extra_args, *flags, full_prompt], False
 
     async def generate_stream(
         self,
