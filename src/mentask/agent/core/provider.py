@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, Union
 import logging
 
 from ..schema import AssistantMessage, Message
@@ -12,7 +12,7 @@ class ProviderManager:
     Handles streaming and message formatting.
     """
 
-    def __init__(self, client):
+    def __init__(self, client: Any) -> None:
         self.client = client
 
     async def stream_turn(

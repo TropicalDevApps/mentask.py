@@ -14,6 +14,7 @@ import getpass
 import os
 import random
 import re
+import threading
 import time
 
 from rich.console import Console, Group
@@ -128,15 +129,30 @@ def _parse_segments(text: str) -> list:
 class GemStyleRenderer:
     """Gem CLI-style renderer with persistent scroll buffer."""
 
+    # Constants for buffer management and throttling
     MAX_COMMITTED_LINES = 100
     MAX_ARTIFACTS = 50
+    FLUSH_BATCH_SIZE = 50
+    THROTTLE_INTERVAL = 0.08  # seconds
+    THINKING_MESSAGE_INTERVAL = 5.0  # seconds
+    TYPEWRISER_UNTYPE_DELAY = 0.015  # seconds
+    TYPEWRISHER_TYPE_DELAY = 0.03  # seconds
+    ERROR_RECOVERY_DELAY = 1.0  # seconds
+    LIVE_REFRESH_RATE = 12  # per second
+    TABLE_PADDING = (0, 1)
+    SYNTAX_PADDING = (0, 1)
+    TOOL_PREVIEW_LENGTH = 40
+    ARTIFACT_PREVIEW_LENGTH = 10000
+    TOOL_RESULT_LINES_LIMIT = 30
+    CODE_BLOCK_LINES_LIMIT = 100
+    CODE_BLOCK_SIZE_LIMIT = 2000
 
     def __init__(
         self,
         console: Console,
         theme_name: str = "indigo",
         stream_mode: str = "continuous",
-        stream_delay: float = 0.015,
+        stream_delay: float = self.TYPEWRISER_UNTYPE_DELAY,
         use_nerdfonts: bool = True,
     ) -> None:
         self.console = console
@@ -165,6 +181,7 @@ class GemStyleRenderer:
         self._thinking_status: Status | None = None
         self._thinking_task: asyncio.Task | None = None
         self._current_thinking_msg = ""
+        self._thinking_lock = threading.Lock()  # Thread safety for thinking status
         self._status_bar_data = {"model": "", "mode": "", "tokens": 0, "cost": 0.0}
 
     def _setup_colors(self) -> None:
@@ -247,30 +264,31 @@ class GemStyleRenderer:
 
     def show_thinking(self) -> None:
         """Display a thinking spinner with a random quirky message and start rotation."""
-        if self._thinking_status:
-            return
+        with self._thinking_lock:
+            if self._thinking_status:
+                return
 
-        from .ui_utils import get_random_thinking_message
+            from .ui_utils import get_random_thinking_message
 
-        base_msg = _("dashboard.prompt_thinking")
-        funny_msg = get_random_thinking_message()
-        full_msg = f"{base_msg} - [dim]{funny_msg}[/]"
+            base_msg = _("dashboard.prompt_thinking")
+            funny_msg = get_random_thinking_message()
+            full_msg = f"{base_msg} - [dim]{funny_msg}[/]"
 
-        self._thinking_status = self.console.status(
-            full_msg,
-            spinner="dots",
-            spinner_style=f"bold {self.C_THINK}",
-        )
-        self._thinking_status.start()
+            self._thinking_status = self.console.status(
+                full_msg,
+                spinner="dots",
+                spinner_style=f"bold {self.C_THINK}",
+            )
+            self._thinking_status.start()
 
-        # Start the typewriter rotation task
-        try:
-            loop = asyncio.get_running_loop()
-            if self._thinking_task and not self._thinking_task.done():
-                self._thinking_task.cancel()
-            self._thinking_task = loop.create_task(self._rotate_thinking_messages())
-        except RuntimeError:
-            pass
+            # Start the typewriter rotation task
+            try:
+                loop = asyncio.get_running_loop()
+                if self._thinking_task and not self._thinking_task.done():
+                    self._thinking_task.cancel()
+                self._thinking_task = loop.create_task(self._rotate_thinking_messages())
+            except RuntimeError:
+                pass
 
     async def _rotate_thinking_messages(self) -> None:
         """Background task to cycle messages with typewriter effect."""
@@ -281,7 +299,7 @@ class GemStyleRenderer:
         while self._thinking_status:
             try:
                 # Wait before changing message
-                await asyncio.sleep(5.0)
+                await asyncio.sleep(self.THINKING_MESSAGE_INTERVAL)
                 if not self._thinking_status:
                     break
 
@@ -294,30 +312,31 @@ class GemStyleRenderer:
                     if not self._thinking_status:
                         return
                     self._thinking_status.update(self._current_thinking_msg[:i])
-                    await asyncio.sleep(0.015)
+                    await asyncio.sleep(self.TYPEWRISER_UNTYPE_DELAY)
 
                 # 2. Type next message
                 for i in range(len(next_msg) + 1):
                     if not self._thinking_status:
                         return
                     self._thinking_status.update(next_msg[:i])
-                    await asyncio.sleep(0.03)
+                    await asyncio.sleep(self.TYPEWRISHER_TYPE_DELAY)
 
                 self._current_thinking_msg = next_msg
             except asyncio.CancelledError:
                 break
             except Exception:
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(self.ERROR_RECOVERY_DELAY)
 
     def stop_thinking(self) -> None:
         """Stop the thinking spinner and the rotation task."""
-        if self._thinking_task:
-            self._thinking_task.cancel()
-            self._thinking_task = None
+        with self._thinking_lock:
+            if self._thinking_task:
+                self._thinking_task.cancel()
+                self._thinking_task = None
 
-        if self._thinking_status:
-            self._thinking_status.stop()
-            self._thinking_status = None
+            if self._thinking_status:
+                self._thinking_status.stop()
+                self._thinking_status = None
 
     def _build_view(self, show_cursor: bool = True) -> Group:
         """Construct a Group with only the UNPRINTED committed content + live text."""
@@ -327,7 +346,7 @@ class GemStyleRenderer:
         if hasattr(self, "_active_header") and self._active_header and self.printed_count == 0 and not items:
             from rich.table import Table
 
-            grid = Table.grid(padding=(0, 1))
+            grid = Table.grid(padding=self.TABLE_PADDING)
             grid.add_column()
             grid.add_column()
 
@@ -345,9 +364,9 @@ class GemStyleRenderer:
         """If the buffer grows too large, print older lines definitively to the console."""
         if len(self.committed_buffer) > self.MAX_COMMITTED_LINES:
             self.console.print(f"[dim]{icons.hdash * 3} older output {icons.hdash * 3}[/dim]")
-            for item in self.committed_buffer[:50]:
+            for item in self.committed_buffer[:self.FLUSH_BATCH_SIZE]:
                 self.console.print(item)
-            self.committed_buffer = self.committed_buffer[50:]
+            self.committed_buffer = self.committed_buffer[self.FLUSH_BATCH_SIZE:]
 
     # ─────────────────────────────────────────────────────────────────
     # Streaming
@@ -365,7 +384,7 @@ class GemStyleRenderer:
         self._live = Live(
             self._build_view(),
             console=self.console,
-            refresh_per_second=12,
+            refresh_per_second=self.LIVE_REFRESH_RATE,
             transient=True,  # ← Reset for definitive print in end_stream
         )
         self._live.start()
@@ -383,10 +402,10 @@ class GemStyleRenderer:
         if "```" in self.live_text:
             self._maybe_commit_code_block()
 
-        # Throttle Live updates to ~80ms intervals — the Live panel has its own
+        # Throttle Live updates to ~80ms intervals — Live panel has its own
         # refresh_per_second=12 but forcing update() on every token is still expensive.
         now = time.time()
-        if self._live and (now - self._last_stream_time) >= 0.08:
+        if self._live and (now - self._last_stream_time) >= self.THROTTLE_INTERVAL:
             self._live.update(self._build_view())
             self._last_stream_time = now
 
@@ -418,7 +437,7 @@ class GemStyleRenderer:
                 self.committed_buffer.append(Markdown(pre_text))
 
             self.committed_buffer.append(
-                Syntax(code, lang, theme=self.theme.code_theme, line_numbers=True, padding=(0, 1))
+                Syntax(code, lang, theme=self.theme.code_theme, line_numbers=True, padding=self.SYNTAX_PADDING)
             )
 
             self.live_text = self.live_text[match.end() :].strip()
@@ -459,7 +478,7 @@ class GemStyleRenderer:
     # ─────────────────────────────────────────────────────────────────
 
     def print_tool_call(self, tool_name: str, args: dict) -> None:
-        args_preview = ", ".join(f"{k}={v}" if len(str(v)) <= 40 else f"{k}=..." for k, v in args.items())
+        args_preview = ", ".join(f"{k}={v}" if len(str(v)) <= self.TOOL_PREVIEW_LENGTH else f"{k}=..." for k, v in args.items())
         line = Text()
         line.append(f"  {icons.tool} ", style=self.C_TOOL)
         line.append(tool_name, style="bold")
@@ -474,7 +493,7 @@ class GemStyleRenderer:
 
     def print_tool_result(self, ok: bool, content: str, tool_name: str | None = None) -> None:
         # LRU eviction
-        stored = content[:10000] if len(content) > 10000 else content
+        stored = content[:self.ARTIFACT_PREVIEW_LENGTH] if len(content) > self.ARTIFACT_PREVIEW_LENGTH else content
         self.artifacts.append((tool_name or "tool", stored))
         if len(self.artifacts) > self.MAX_ARTIFACTS:
             self.artifacts.pop(0)
@@ -490,17 +509,17 @@ class GemStyleRenderer:
 
         # Expand if it's a list, diff, or short structured content (up to 100 lines)
         # OR if it's an error (always show errors expanded for visibility)
-        if (ok and len(lines) <= 100 and (is_list or is_diff or len(content) < 2000)) or not ok:
+        if (ok and len(lines) <= self.CODE_BLOCK_LINES_LIMIT and (is_list or is_diff or len(content) < self.CODE_BLOCK_SIZE_LIMIT)) or not ok:
             # Render structured output with more prominence
             border_style = self.C_DIM
             subtitle = None
 
             if not ok:
                 # Limit error preview to avoid blowing up the terminal
-                error_lines = lines[:30]
+                error_lines = lines[:self.TOOL_RESULT_LINES_LIMIT]
                 error_text = "\n".join(error_lines)
-                if len(lines) > 30:
-                    error_text += f"\n... ({len(lines) - 30} more lines)"
+                if len(lines) > self.TOOL_RESULT_LINES_LIMIT:
+                    error_text += f"\n... ({len(lines) - self.TOOL_RESULT_LINES_LIMIT} more lines)"
                 preview_renderable = Text(error_text, style=self.C_ERROR)
                 border_style = self.C_ERROR
                 subtitle = None
