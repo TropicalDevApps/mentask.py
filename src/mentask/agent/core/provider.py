@@ -32,7 +32,9 @@ class ProviderManager:
                 assistant_msg.content += chunk_content
                 yield {"type": "text", "content": chunk_content}  # yield delta only, not accumulated
             elif chunk_type == "thought":
-                assistant_msg.thought = chunk_content
+                if assistant_msg.thought is None:
+                    assistant_msg.thought = ""
+                assistant_msg.thought += chunk_content
                 yield {"type": "thought", "content": chunk_content}
             elif chunk_type == "tool_call":
                 assistant_msg.tool_calls.append(chunk_content)

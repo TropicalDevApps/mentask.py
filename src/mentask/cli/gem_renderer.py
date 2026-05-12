@@ -9,8 +9,10 @@ Key differences from CliRenderer:
 
 from __future__ import annotations
 
+import asyncio
 import getpass
 import os
+import random
 import re
 import time
 
@@ -24,7 +26,7 @@ from rich.status import Status
 from rich.syntax import Syntax
 from rich.text import Text
 
-from ..core.i18n import _
+from ..core.i18n import _, _list
 from .prompts import PromptEngine
 from .themes import get_theme
 
@@ -161,6 +163,9 @@ class GemStyleRenderer:
         self._last_stream_time = time.time()
         self.printed_count = 0  # Number of items in committed_buffer already printed definitively
         self._thinking_status: Status | None = None
+        self._thinking_task: asyncio.Task | None = None
+        self._current_thinking_msg = ""
+        self._status_bar_data = {"model": "", "mode": "", "tokens": 0, "cost": 0.0}
 
     def _setup_colors(self) -> None:
         self.C_BRAND = self.theme.brand_primary
@@ -170,6 +175,23 @@ class GemStyleRenderer:
         self.C_THINK = self.theme.think_color
         self.C_USER = self.theme.text_secondary
         self.C_TOOL = self.theme.warning
+
+    def update_status_bar(self, model: str = None, mode: str = None, tokens: int = None, cost: float = None) -> None:
+        """Updates the internal data used for the status bar."""
+        if model is not None: self._status_bar_data["model"] = model
+        if mode is not None: self._status_bar_data["mode"] = mode
+        if tokens is not None: self._status_bar_data["tokens"] = tokens
+        if cost is not None: self._status_bar_data["cost"] = cost
+
+    def print_status_bar(self) -> None:
+        """Prints the current status bar to the console."""
+        bar = self.prompt_engine.build_status_bar(
+            self._status_bar_data["model"],
+            self._status_bar_data["mode"],
+            self._status_bar_data["tokens"],
+            self._status_bar_data["cost"]
+        )
+        self.console.print(bar)
 
     def _get_lexer_for_path(self, path: str | None) -> str:
         """Determines the Rich syntax lexer based on file extension."""
@@ -224,7 +246,7 @@ class GemStyleRenderer:
     # ─────────────────────────────────────────────────────────────────
 
     def show_thinking(self) -> None:
-        """Display a thinking spinner."""
+        """Display a thinking spinner with a random quirky message and start rotation."""
         if self._thinking_status:
             return
 
@@ -241,8 +263,58 @@ class GemStyleRenderer:
         )
         self._thinking_status.start()
 
+        # Start the typewriter rotation task
+        try:
+            loop = asyncio.get_running_loop()
+            if self._thinking_task and not self._thinking_task.done():
+                self._thinking_task.cancel()
+            self._thinking_task = loop.create_task(self._rotate_thinking_messages())
+        except RuntimeError:
+            pass
+
+    async def _rotate_thinking_messages(self) -> None:
+        """Background task to cycle messages with typewriter effect."""
+        messages = _list("thinking.messages")
+        if not messages:
+            return
+
+        while self._thinking_status:
+            try:
+                # Wait before changing message
+                await asyncio.sleep(5.0)
+                if not self._thinking_status:
+                    break
+
+                next_msg = random.choice(messages)
+                while next_msg == self._current_thinking_msg and len(messages) > 1:
+                    next_msg = random.choice(messages)
+
+                # 1. Un-type current message
+                for i in range(len(self._current_thinking_msg), -1, -1):
+                    if not self._thinking_status:
+                        return
+                    self._thinking_status.update(self._current_thinking_msg[:i])
+                    await asyncio.sleep(0.015)
+
+                # 2. Type next message
+                for i in range(len(next_msg) + 1):
+                    if not self._thinking_status:
+                        return
+                    self._thinking_status.update(next_msg[:i])
+                    await asyncio.sleep(0.03)
+
+                self._current_thinking_msg = next_msg
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                await asyncio.sleep(1.0)
+
     def stop_thinking(self) -> None:
-        """Stop the thinking spinner."""
+        """Stop the thinking spinner and the rotation task."""
+        if self._thinking_task:
+            self._thinking_task.cancel()
+            self._thinking_task = None
+
         if self._thinking_status:
             self._thinking_status.stop()
             self._thinking_status = None
@@ -431,7 +503,7 @@ class GemStyleRenderer:
                     error_text += f"\n... ({len(lines) - 30} more lines)"
                 preview_renderable = Text(error_text, style=self.C_ERROR)
                 border_style = self.C_ERROR
-                subtitle = "[dim]Ctrl+O to expand full error[/]"
+                subtitle = None
             elif tool_name == "read_file" and len(lines) > 1:
                 # Detect filename from the header created in file_tools.py
                 path = None
@@ -443,7 +515,7 @@ class GemStyleRenderer:
                 # Skip the header in the preview if possible
                 body = "\n".join(lines[1:])
                 preview_renderable = Syntax(body, lexer, theme="monokai", background_color="default")
-                subtitle = "[dim]Ctrl+O to expand[/]"
+                subtitle = None
             elif is_diff:
                 preview_renderable = Syntax(content, "diff", theme="monokai", background_color="default")
             else:
@@ -467,7 +539,7 @@ class GemStyleRenderer:
             if len(content) > 120:
                 preview += "..."
             line = Text.from_markup(
-                f"  {icon} [bold]{name_display}[/] [dim]({artifact_id})[/]  [dim]{escape(preview)}[/] [dim](Ctrl+O to expand)[/]"
+                f"  {icon} [bold]{name_display}[/] [dim]({artifact_id})[/]  [dim]{escape(preview)}[/]"
             )
 
         self.committed_buffer.append(line)
@@ -524,7 +596,6 @@ class GemStyleRenderer:
                 Panel(
                     renderable,
                     title=f"[bold {self.C_BRAND}]{name} {artifact_id}[/]",
-                    subtitle="[dim]Ctrl+O to toggle[/]",
                     border_style=self.C_DIM,
                     padding=(1, 2),
                 )
@@ -537,14 +608,17 @@ class GemStyleRenderer:
     # ─────────────────────────────────────────────────────────────────
 
     def print_welcome(self, version: str, model: str, mode: str) -> None:
+        self.update_status_bar(model=model, mode=mode)
         self.console.print()
         self.console.print(
             f"  [bold {self.C_BRAND}]{icons.brand} mentask[/]  [dim]v{version}[/]  "
             f"[dim]{icons.dot}[/]  [bold white]{model}[/]  [dim]{icons.dot}[/]  [dim]{mode} mode[/]",
         )
         self.console.print(
-            f"  [dim]Type [white]/help[/white] for commands {icons.dot} [white]Ctrl+O[/white] to expand last result {icons.dot} [white]Ctrl+C[/white] to exit[/dim]\n",
+            f"  [dim]Type [white]/help[/white] for commands {icons.dot} [white]Ctrl+C[/white] to exit[/dim]\n",
         )
+        self.print_status_bar()
+        self.console.print()
 
     def print_user(self, text: str, prompt_text: Text | None = None) -> None:
         from rich.control import Control
