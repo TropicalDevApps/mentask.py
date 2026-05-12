@@ -6,7 +6,6 @@
     <td valign="top">
       <h1>mentask</h1>
       <p><strong>The Self-Evolving Autonomous Agent for Engineers Who love to work with the CLI</strong><br/>
-      <em>(yes, i use Arch, why do you ask?)</em></p>
       <p>
         <a href="https://pypi.org/project/mentask/"><img src="https://img.shields.io/pypi/v/mentask.svg" alt="PyPI version"></a>
         <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+"></a>
