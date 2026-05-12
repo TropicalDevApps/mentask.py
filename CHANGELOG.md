@@ -10,6 +10,25 @@ All notable changes to this project will be documented in this file.
 - **Memory Metadata Caching**: Introduced `.metadata_cache.json` in the memories directory to support thousands of learning files with zero performance lag.
 - **Intelligent Context Pre-selection**: Refactored `ContextManager` and `ChatAgent` to automatically pre-select relevant context based on the user query before every turn.
 
+## [0.27.2] - 2026-05-12
+
+### Changed
+- **LSP Diagnostics**: Implemented asynchronous file reading for LSP diagnostics to ensure a responsive TUI during large-scale code analysis.
+- **Testing Infrastructure**: Added comprehensive unit tests for `get_historical_report`, `ContextSnapper`, and `total_tokens` metrics.
+
+### Fixed
+- **Trust Manager**: Fixed a bug where exceptions were being silently swallowed, preventing proper directory trust resolution.
+- **Linting**: Resolved multiple static analysis warnings across the core engine to maintain CI integrity.
+
+## [0.27.1] - 2026-05-10
+
+### Added
+- **Diagnostic Build**: Consolidated various PRs and hotfixes into a unified diagnostic release for stability verification.
+
+### Fixed
+- **API Key Resolution**: Added missing edge-case tests for `ConfigManager.load_api_key`.
+- **Path Safety**: Improved validation logic in `analyze_path_safety` for safer directory scanning.
+
 ## [0.27.0] - 2026-05-09
 
 ### Added
