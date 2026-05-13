@@ -23,6 +23,7 @@ class ConfigManager:
         "deepseek_api_key",
         "anthropic_api_key",
         "google_search_api_key",
+        "groq_api_key",
     ]
 
     def __init__(self, console):
