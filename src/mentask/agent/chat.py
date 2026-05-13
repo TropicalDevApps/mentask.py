@@ -620,6 +620,7 @@ class ChatAgent:
         from prompt_toolkit.completion import NestedCompleter
 
         from ..cli import themes
+        from ..core.models_hub import hub
 
         # 1. Build basic completion map
         completion_dict: dict[str, Any] = {}
@@ -639,25 +640,40 @@ class ChatAgent:
             styles = {s: None for s in self.active_renderer.prompt_engine.STYLES}
             completion_dict["/prompt"] = {"--theme": styles, "--nerdfonts": {"on": None, "off": None}}
 
-        # 4. Dynamic model fetching
+        # 4. Dynamic model fetching from ModelsHub (Unified Discovery)
         try:
-            models = await self.session.list_models()
+            # Robustness: Sync local models (Ollama, CLI bridges) before updating list
+            hub.sync_local()
+
+            model_options: dict[str, Any] = {}
             health_data = getattr(self, "model_health", {})
 
-            if models:
-                model_options: dict[str, Any] = {}
-                for m in models:
-                    is_ok, error = health_data.get(m, (True, None))
-                    if is_ok:
-                        model_options[m] = None
-                    else:
-                        display_name = f"{m} ({error})"
-                        model_options[display_name] = None
+            # Filter models based on session type (local vs normal)
+            for m_id, m_info in hub._flat_models.items():
+                provider_info = m_info.get("_provider", {})
+                p_id = provider_info.get("id", "unknown")
 
+                # If in local_mode, strictly show only local/cli models
+                if self.local_mode and p_id not in ("ollama", "cli"):
+                    continue
+
+                # Add both pure ID and scoped ID (provider:model) for maximum flexibility
+                # The NestedCompleter will handle filtering based on user input (e.g. typing 'ollama:')
+                is_ok, error = health_data.get(m_id, (True, None))
+                if is_ok:
+                    model_options[m_id] = None
+                else:
+                    display_name = f"{m_id} ({error})"
+                    model_options[display_name] = None
+
+            if model_options:
                 completion_dict["/model"] = model_options
             else:
+                # Fallback to current model if discovery fails
                 completion_dict["/model"] = {self.model_name: None}
-        except Exception:
+
+        except Exception as e:
+            _logger.debug(f"Completer update failed for models: {e}")
             completion_dict["/model"] = {self.model_name: None}
 
         # 5. Update the completer object
