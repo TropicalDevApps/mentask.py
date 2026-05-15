@@ -17,6 +17,6 @@ async def test_cli_provider_stream():
     async for chunk in p.generate_stream([], [], {"system_instruction": "Test"}):
         events.append(chunk)
 
-    tool_calls = [e for e in events if e["type"] == "tool_call"]
+    tool_calls = [e for e in events if e.get("type") == "tool_call"]
     assert len(tool_calls) == 1
     assert tool_calls[0]["content"].name == "read_file"

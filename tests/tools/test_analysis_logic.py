@@ -74,6 +74,13 @@ class TestGetRepoStructure:
         result = get_repo_structure()
         assert "Error mapping repo: Unexpected error" in result
 
+    @patch("subprocess.run")
+    @patch("os.listdir")
+    def test_get_repo_structure_fallback_exception(self, mock_listdir, mock_run):
+        mock_run.return_value = MagicMock(returncode=1)
+        mock_listdir.side_effect = Exception("OS Listdir error")
+        result = get_repo_structure()
+        assert "Error mapping repo: OS Listdir error" in result
 
 class TestDetectProjectBlueprint:
     @patch("os.listdir")
