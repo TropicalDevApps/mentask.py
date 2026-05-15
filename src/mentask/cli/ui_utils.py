@@ -8,6 +8,20 @@ import subprocess
 import sys
 
 
+def get_ascii_banner() -> str:
+    """Returns a wide ASCII banner for MentAsk."""
+    return r"""
+[bold #4285f4] ███╗   ███╗███████╗███╗   ██╗████████╗ █████╗ ███████╗██╗  ██╗[/]
+[bold #8ab4f8] ████╗ ████║██╔════╝████╗  ██║╚══██╔══╝██╔══██╗██╔════╝██║ ██╔╝[/]
+[bold #c5a9f5] ██╔████╔██║█████╗  ██╔██╗ ██║   ██║   ███████║███████╗█████╔╝ [/]
+[bold #a855f7] ██║╚██╔╝██║██╔══╝  ██║╚██╗██║   ██║   ██╔══██║╚════██║██╔═██╗ [/]
+[bold #4c1d95] ██║ ╚═╝ ██║███████╗██║ ╚████║   ██║   ██║  ██║███████║██║  ██╗[/]
+[bold #4285f4] ╚═╝     ╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝[/]
+[dim] ─────────────────────────────────────────────────────────────────── [/]
+[bold white]   THE PYTHON AI AGENT [/][dim]by[/][bold #4285f4] TropicalDev [/]
+"""
+
+
 def get_random_thinking_message() -> str:
     messages = [
         "consulting the ancestors...",

@@ -554,12 +554,12 @@ mypy src/
 
 Licensed under the **MIT License**. See `LICENSE` file for details.
 
-Built with ❤️, excessive caffeine, and a deep hatred for manual refactoring by [julesklord](https://github.com/julesklord).
+Built with ❤️, excessive caffeine, and a deep hatred for manual refactoring by [TropicalDev](https://github.com/TropicalDevApps).
 
 If mentask saves you hours of boring work, consider:
 
 - ⭐ Starring the repo (costs nothing, means everything)
-- 🍻 Buying the author a beer (if you meet in person)
+- 🍻 Sponsoring TropicalDev (keeping the caffeine flowing)
 - 🐛 Reporting bugs and edge cases (helps everyone)
 - 🔧 Contributing improvements (the best feedback is code)
 

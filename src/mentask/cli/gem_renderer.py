@@ -304,10 +304,11 @@ class GemStyleRenderer:
 
     async def _rotate_thinking_messages(self) -> None:
         """Background task to cycle messages with typewriter effect."""
-        messages = _list("thinking.messages")
-        if not messages:
-            return
-
+        from .ui_utils import get_random_thinking_message
+        
+        # We combine i18n messages with quirky hardcoded ones to ensure it's never empty
+        i18n_messages = _list("thinking.messages") or []
+        
         while self._thinking_status:
             try:
                 # Wait before changing message
@@ -315,9 +316,17 @@ class GemStyleRenderer:
                 if not self._thinking_status:
                     break
 
-                next_msg = random.choice(messages)
-                while next_msg == self._current_thinking_msg and len(messages) > 1:
-                    next_msg = random.choice(messages)
+                # Get a new message, either from i18n or the quirky list
+                if i18n_messages and random.random() > 0.3:
+                    next_msg = random.choice(i18n_messages)
+                else:
+                    next_msg = get_random_thinking_message()
+
+                while next_msg == self._current_thinking_msg:
+                    if i18n_messages and random.random() > 0.3:
+                        next_msg = random.choice(i18n_messages)
+                    else:
+                        next_msg = get_random_thinking_message()
 
                 # 1. Un-type current message
                 for i in range(len(self._current_thinking_msg), -1, -1):
@@ -707,6 +716,12 @@ class GemStyleRenderer:
     # ─────────────────────────────────────────────────────────────────
     # UI Elements
     # ─────────────────────────────────────────────────────────────────
+    def print_splash_screen(self) -> None:
+        """Prints a wide ASCII banner and welcome message for new sessions."""
+        from .ui_utils import get_ascii_banner
+        
+        self.console.print(get_ascii_banner())
+        self.console.print()
 
     def print_welcome(self, version: str, model: str, mode: str) -> None:
         self.update_status_bar(model=model, mode=mode)

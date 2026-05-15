@@ -794,6 +794,8 @@ class ChatAgent:
         await self.session.ensure_session(self._build_config(), history=None)
         await self.orchestrator.executor.initialize()
 
+        if is_new_session:
+            renderer.print_splash_screen()
         renderer.print_welcome(__version__, self.model_name, self.edit_mode)
         await self._ensure_trust(renderer)
 

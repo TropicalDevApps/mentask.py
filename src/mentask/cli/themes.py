@@ -322,9 +322,45 @@ THEMES = {
         git_branch="#ffffff",
         python_venv="#ffffff",
     ),
+    "tropical_dark": ThemeConfig(
+        brand_primary="#8ab4f8",  # Tropical Blue Light
+        brand_secondary="#c5a9f5",  # Tropical Purple
+        success="#81c995",
+        warning="#fbbf24",
+        error="#f28b82",
+        info="#8ab4f8",
+        text_primary="#d0d0d0",
+        text_secondary="#848484",
+        text_dim="#404040",
+        border="#404040",
+        background="#0a0c0f",
+        think_color="#848484",
+        code_theme="monokai",
+        git_branch="#8ab4f8",
+        python_venv="#81c995",
+        model_badge="#c5a9f5",
+    ),
+    "tropical_light": ThemeConfig(
+        brand_primary="#4285f4",  # Tropical Blue
+        brand_secondary="#a855f7",  # Tropical Purple Deep
+        success="#34a853",
+        warning="#fbbf24",
+        error="#ea4335",
+        info="#4285f4",
+        text_primary="#000000",
+        text_secondary="#5f6368",
+        text_dim="#9aa0a6",
+        border="#dadce0",
+        background="#ffffff",
+        think_color="#5f6368",
+        code_theme="monokai",
+        git_branch="#4285f4",
+        python_venv="#34a853",
+        model_badge="#a855f7",
+    ),
 }
 
 
 def get_theme(name: str) -> ThemeConfig:
-    """Get a theme by name, fallback to indigo."""
-    return THEMES.get(name, THEMES["indigo"])
+    """Get a theme by name, fallback to tropical_dark."""
+    return THEMES.get(name, THEMES["tropical_dark"])
