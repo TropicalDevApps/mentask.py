@@ -65,17 +65,34 @@ class PromptEngine:
         return "" if self.use_nerdfonts else ")"
 
     def _render_atomic(self, segments: list[PromptSegment]) -> Text:
-        """Renders segments in 'Atomic' pill style."""
+        """Renders segments in 'Atomic' premium two-line style."""
         res = Text()
         if not segments:
             return res
 
-        for _i, seg in enumerate(segments):
+        # Line 1: Metadata segments as pills (The "Status Line")
+        res.append("\n ") 
+        for seg in segments:
             content = f"{seg.icon} {seg.text}" if seg.icon else seg.text
             res.append(self.L_HALF, style=seg.bg or seg.fg)
             res.append(f" {content} ", style=f"{seg.fg} on {seg.bg}" if seg.bg else seg.fg)
             res.append(self.R_HALF, style=seg.bg or seg.fg)
             res.append(" ")
+        
+        # Line 2: Contextual prompt (The "Action Line")
+        cwd = os.getcwd()
+        home = os.path.expanduser("~")
+        display_path = cwd.replace(home, "~")
+        
+        res.append("\n ")
+        if self.use_nerdfonts:
+            res.append("", style=self.theme.brand_primary)
+            res.append(f" {display_path} ", style=f"black on {self.theme.brand_primary}")
+            res.append("", style=self.theme.brand_primary)
+            res.append(" ❯ ", style=f"bold {self.theme.brand_primary}")
+        else:
+            res.append(f"{display_path} ❯ ", style=f"bold {self.theme.brand_primary}")
+        
         return res
 
     def _render_rainbow(self, segments: list[PromptSegment]) -> Text:

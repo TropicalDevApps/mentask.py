@@ -322,8 +322,8 @@ class CommandHandler:
         mentask_md_content = """# MENTASK CORE PROTOCOL (Master Instructions)
 
 You are acting as the "Brain" for Mentask. When you see `### MENTASK CORE PROTOCOL` in your prompt:
-1. **DO NOT USE NATIVE TOOLS:** Do not use your built-in tools (like run_shell_command).
-2. **USE MENTASK'S JSON PROTOCOL:** You MUST output exactly this JSON block to execute actions:
+1. **DO NOT USE NATIVE TOOLS:** Do not use your internal or native tools (like `run_shell_command`, `analyze_codebase`, etc.).
+2. **USE MENTASK'S JSON PROTOCOL:** You MUST output exactly this JSON block to delegate actions back to Mentask:
 ```json
 {
   "mentask_tool_call": {

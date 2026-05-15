@@ -40,14 +40,37 @@ class HistoryManager:
 
     def _deserialize_message(self, data: dict) -> Message | None:
         try:
-            # Handle cases where metadata might be missing in older history files
-            metadata = data.get("metadata")
-            if metadata is None:
-                metadata = {}
+            from ..agent.schema import AssistantMessage, ToolCall
+
+            role_str = data.get("role", "")
+            metadata = data.get("metadata") or {}
+            content = data.get("content", "")
+            thought = data.get("thought")
+
+            if role_str == "assistant":
+                # Reconstruct tool_calls list
+                raw_calls = data.get("tool_calls") or []
+                tool_calls = []
+                for tc in raw_calls:
+                    if isinstance(tc, dict) and "name" in tc:
+                        tool_calls.append(ToolCall(
+                            id=tc.get("id", ""),
+                            name=tc["name"],
+                            arguments=tc.get("arguments", {}),
+                        ))
+                return AssistantMessage(
+                    role=Role(role_str),
+                    content=content,
+                    thought=thought,
+                    metadata=metadata,
+                    model=data.get("model", ""),
+                    tool_calls=tool_calls,
+                )
 
             return Message(
-                role=Role(data["role"]),
-                content=data["content"],
+                role=Role(role_str),
+                content=content,
+                thought=thought,
                 metadata=metadata,
             )
         except (KeyError, ValueError) as e:

@@ -128,8 +128,9 @@ class AgentOrchestrator:
 
         if is_git:
             lines.append(
-                "GIT REPO DETECTED: Use `run_shell_command` for git operations "
-                "(git log, git diff, git status). Prefer shell over read_file for git metadata."
+                "- **Git Mastery**: You are in a Git repository. Use `analyze_codebase` to see changes and "
+                "repository structure. Use `commit_changes` to finalize tasks with structured messages. "
+                "Prefer `commit_changes` over raw `git commit` commands."
             )
         if has_python:
             lines.append(
@@ -263,7 +264,8 @@ class AgentOrchestrator:
                 turn_config = self._build_turn_config(config, level=level)
                 async for event in self.provider.stream_turn(history, self.tools.get_all_schemas(), config=turn_config):
                     yield event
-                    if event["type"] == "metrics":
+                    # Guard: status-only chunks (e.g. {'status': THINKING}) have no 'type' key
+                    if event.get("type") == "metrics":
                         total_usage = getattr(event["usage"], "input_tokens", 0) + getattr(
                             event["usage"], "output_tokens", 0
                         )

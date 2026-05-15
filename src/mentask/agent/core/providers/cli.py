@@ -14,15 +14,22 @@ from .base import BaseProvider
 
 _logger = logging.getLogger("mentask")
 
-# Patterns to ignore in stderr (repetitive system warnings)
-_IGNORED_STDERR_PATTERNS = [
+# Patterns to intercept in stderr (system warnings to beautify)
+_SYSTEM_WARNING_PATTERNS = [
     r"Windows 10 detected",
     r"Windows 11 is recommended",
     r"Ripgrep is not available",
     r"Falling back to GrepTool",
     r"True color \(24-bit\) support not detected",
+    r"256-color support not detected",
     r"DEP0190",  # Node.js deprecation warning for shell option
     r"Use `node --trace-deprecation",
+]
+
+# Patterns to completely ignore (too noisy)
+_IGNORED_STDERR_PATTERNS = [
+    r"Debugger listening on ws://",
+    r"For help, see: https://nodejs.org/en/docs/inspector",
 ]
 
 
@@ -59,12 +66,24 @@ class CLIProvider(BaseProvider):
         # Strip 'cli:' prefix if present
         pure_cmd = model_name.removeprefix("cli:")
         super().__init__(pure_cmd, config)
-        # cli_command is the user-facing alias or a full template string
-        self.cli_command = pure_cmd
+
+        # Parse 'binary:model_id' format: e.g. 'gemini-cli:gemini-2.5-pro'
+        # If there's a colon, split into CLI binary and the model to select
+        if ":" in pure_cmd:
+            parts = pure_cmd.split(":", 1)
+            self.cli_command = parts[0]      # The binary to invoke (e.g. 'gemini-cli')
+            self.cli_model = parts[1]        # The model to request (e.g. 'gemini-2.5-pro')
+        else:
+            self.cli_command = pure_cmd
+            self.cli_model = None            # Use the binary's default model
+
         # Resolved binary path (set in setup())
         self._binary_path: str | None = None
-        # Display name for renderer
-        self.display_name = pure_cmd
+        # Display name for renderer: 'bin/model' or 'bin'
+        if self.cli_model:
+            self.display_name = f"{self.cli_command}/{self.cli_model}"
+        else:
+            self.display_name = self.cli_command
 
     async def setup(self) -> bool:
         # If the command is a template string (contains spaces or {prompt}), extract the binary
@@ -101,13 +120,30 @@ class CLIProvider(BaseProvider):
         prompt_parts.append(f"MISSION: {system_instruction}")
 
         if tools_schema:
-            prompt_parts.append("\n### TOOLBOX")
-            prompt_parts.append("You are the BRAIN of an autonomous agent. MentAsk is your BODY.")
-            prompt_parts.append("To execute an action, you MUST output a JSON block in your response. ")
+            prompt_parts.append("\n### TOOLBOX & PROTOCOL")
+            prompt_parts.append("You are the BRAIN. MentAsk is your BODY and your OPERATING SYSTEM.")
+            prompt_parts.append("CRITICAL: You are a 'Headless' model. You have NO eyes, NO hands, and NO direct system access.")
+            prompt_parts.append("Everything you see or do MUST go through MentAsk tools.")
+
+            prompt_parts.append("\n### CAPABILITIES MAPPING")
+            prompt_parts.append("- To see files/folders: Use 'list_dir' or 'glob_find'.")
+            prompt_parts.append("- To read code: Use 'read_file' or 'grep_search'.")
+            prompt_parts.append("- To change code: Use 'edit_file' or 'write_file'.")
+            prompt_parts.append("- To run commands: Use 'execute_command' (Windows) or 'execute_bash' (Unix).")
+            prompt_parts.append("- To search web: Use 'web_search'.")
+            prompt_parts.append("- To remember things: Use 'working_memory' or 'memory'.")
+
+            prompt_parts.append("\n### EXECUTION FORMAT")
+            prompt_parts.append("To call a tool, you MUST output a single JSON block. DO NOT use your internal tool-calling syntax.")
             prompt_parts.append("FORMAT:")
             prompt_parts.append(
                 '```json\n{\n  "mentask_tool_call": {\n    "name": "tool_name",\n    "arguments": {"arg": "val"}\n  }\n}\n```'
             )
+            prompt_parts.append("\nRULES:")
+            prompt_parts.append("1. ALWAYS explore with 'list_dir' before assuming a file's location.")
+            prompt_parts.append("2. Use 'read_file' before editing to ensure context.")
+            prompt_parts.append("3. You can only call ONE tool at a time.")
+            prompt_parts.append("4. Use EXACT tool names from the schema below.")
 
             prompt_parts.append("\nAVAILABLE TOOLS (JSON Schema):")
             for tool in tools_schema:
@@ -140,6 +176,12 @@ class CLIProvider(BaseProvider):
             if msg.role == Role.TOOL:
                 tool_name = msg.metadata.get("tool_name", "unknown")
                 prompt_parts.append(f"[{role} - {tool_name} RESULT]: {content}")
+            elif msg.role == Role.ASSISTANT:
+                content = msg.content or ""
+                # Force a thought block if missing to satisfy strict external CLI validators (like HistoryHardener)
+                thought = getattr(msg, "thought", None) or "Analyzing the state and determining next steps..."
+                content = f"<thought>\n{thought}\n</thought>\n\n{content}"
+                prompt_parts.append(f"ASSISTANT: {content}")
             else:
                 prompt_parts.append(f"[{role}]: {content}")
 
@@ -189,10 +231,11 @@ class CLIProvider(BaseProvider):
 
         flags = _NON_INTERACTIVE_FLAGS.get(binary_name, [])
 
-        # Heuristic: if flags include a way to read from stdin, or if prompt is large
-        # We prefer stdin for gemini specifically as we know it supports it via '-p -'
         if binary_name in ("gemini", "gemini-cli"):
             args = [binary, *extra_args]
+            # Pass specific model if requested
+            if self.cli_model:
+                args.extend(["--model", self.cli_model])
             if session_id:
                 if is_first_turn:
                     args.extend(["--session-id", str(session_id)])
@@ -201,7 +244,15 @@ class CLIProvider(BaseProvider):
             args.extend(flags)
             return args, True
 
-        return [binary, *extra_args, *flags, full_prompt], False
+        # Generic CLI: apply model flag from descriptor if known
+        from ....core.model_discovery import get_model_flag
+        model_flag = get_model_flag(binary_name)
+        args = [binary, *extra_args]
+        if self.cli_model and model_flag:
+            args.extend([model_flag, self.cli_model])
+        args.extend(flags)
+        args.append(full_prompt)
+        return args, False
 
     async def generate_stream(
         self,
@@ -252,13 +303,21 @@ class CLIProvider(BaseProvider):
                         line = str(line_bytes)
 
                     if is_stderr:
-                        # Filter out ignored patterns
+                        # 1. Intercept system warnings to beautify them
+                        if any(re.search(p, line) for p in _SYSTEM_WARNING_PATTERNS):
+                            clean_msg = line.replace("Warning:", "").strip()
+                            # Strip common prefixes from the external CLI if present
+                            clean_msg = clean_msg.removeprefix("[stderr]").strip()
+                            yield {"type": "info", "content": f"󰀦 {clean_msg}"}
+                            continue
+
+                        # 2. Filter out completely ignored patterns
                         if any(re.search(p, line) for p in _IGNORED_STDERR_PATTERNS):
                             continue
 
-                        # Yield stderr as text but only if it looks like an error or a useful warning
+                        # 3. Yield other stderr as text
                         if line.strip():
-                            yield {"type": "text", "content": f"[stderr] {line}"}
+                            yield {"type": "text", "content": f"[dim][stderr] {line.strip()}[/dim]"}
                         continue
 
                     # Logic to detect JSON blocks even if mixed with text

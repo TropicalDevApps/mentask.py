@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mentask"
-version = "0.27.9"
+version = "0.30.0"
 description = "MentAsk: Universal AI Coding Agent with multi-provider support via models.dev"
 readme = "README.md"
 authors = [
@@ -34,6 +34,7 @@ dependencies = [
     "prompt-toolkit>=3.0.0",
     "mcp>=1.0.0",
     "keyrings.alt",
+    "aiofiles",
 ]
 
 [project.optional-dependencies]

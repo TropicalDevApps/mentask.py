@@ -30,8 +30,12 @@ def get_provider(model_name: str, config: Any) -> BaseProvider:
         provider_prefix = provider_prefix.lower()
 
     # 1.5. Check for CLI bridge
-    if provider_prefix == "cli":
-        return CLIProvider(pure_model_name, config)
+    from mentask.core.model_discovery import get_installed_cli_binaries
+    installed_clis = get_installed_cli_binaries()
+
+    if provider_prefix == "cli" or provider_prefix in installed_clis:
+        # Backward compatibility, explicit tag, or direct binary:model notation
+        return CLIProvider(model_name, config)
 
     # 2. Local/Specialized detect logic
     if is_local_mode or provider_prefix == "ollama" or "ollama" in pure_model_name.lower():
