@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.27.8] - 2026-05-12
+## [0.28.9] - 2026-05-15
 
 ### Added
 - **Thought Process Toggle**: Introduced the `/thinking [true|false]` command to show or hide the agent's internal reasoning loop.
