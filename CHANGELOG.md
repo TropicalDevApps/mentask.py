@@ -2,7 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.28.9] - 2026-05-15
+## [0.29.0] - 2026-05-15
+
+### Added
+- **Multi-Agent CLI Bridge**: Seamless integration for external CLI binaries (`gemini-cli`, `codex`, `opencode`) with hierarchical model discovery and dynamic autocompletion.
+- **Git Mastery Integration**: Introduced `commit_changes` tool for structured Conventional Commits, including automated staging and diff previsualization.
+- **New Core Tools**: Added `GitCommitTool` and `git_logic.py` to ensure high-quality repository history.
+
+### Fixed
+- **Test Suite Resilience**: Resolved critical integration failures in `conftest.py` related to Ollama PATH issues and stabilized Windows-specific path separators in tool tests.
+- **UI/UX Refinement**: Simplified model nomenclature (e.g., `gemini-cli:pro` instead of `cli:gemini-cli:pro`) and fixed status bar rendering artifacts.
+- **Provider Stability**: Enabled streaming of `tool_call`, `info`, and `error` events for all external providers.
+
+## [0.27.9] - 2026-05-12
+
+### Fixed
+- **Worktree Tools**: Fixed an `IndentationError` in `src/mentask/tools/worktree_tools.py` that prevented the CLI from starting.
+- **Improved Tooling**: Added comprehensive unit tests for worktree tools to ensure stability.
+
+## [0.27.8] - 2026-05-12
 
 ### Added
 - **Thought Process Toggle**: Introduced the `/thinking [true|false]` command to show or hide the agent's internal reasoning loop.

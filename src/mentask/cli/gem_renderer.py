@@ -27,6 +27,7 @@ from rich.status import Status
 from rich.syntax import Syntax
 from rich.text import Text
 
+from ..agent.schema import Message, Role
 from ..core.i18n import _, _list
 from .prompts import PromptEngine
 from .themes import get_theme
@@ -195,7 +196,9 @@ class GemStyleRenderer:
         self.C_USER = self.theme.text_secondary
         self.C_TOOL = self.theme.warning
 
-    def update_status_bar(self, model: str = None, mode: str = None, tokens: int = None, cost: float = None) -> None:
+    def update_status_bar(
+        self, model: str | None = None, mode: str | None = None, tokens: int | None = None, cost: float | None = None
+    ) -> None:
         """Updates the internal data used for the status bar."""
         if model is not None:
             self._status_bar_data["model"] = model
@@ -632,6 +635,75 @@ class GemStyleRenderer:
         except Exception as e:
             self.print_error(f"Error expanding artifact: {e}")
 
+    def replay_history(self, history: list[Message]) -> None:
+        """Re-renders historical messages into the console with proper styling."""
+        if not history:
+            return
+
+        from rich.markdown import Markdown
+
+        self.console.print(f"\n  [dim]{'─' * 50} session history {'─' * 8}[/dim]\n")
+
+        for msg in history:
+            if msg.role == Role.SYSTEM:
+                continue
+
+            try:
+                if msg.role == Role.USER:
+                    content_str = msg.content if isinstance(msg.content, str) else str(msg.content)
+                    self.console.print(f"[bold {self.C_USER}] ❯ {content_str}[/]\n")
+
+                elif msg.role == Role.ASSISTANT:
+                    # getattr is safe here: only AssistantMessage has tool_calls
+                    tool_calls = getattr(msg, "tool_calls", None) or []
+                    header = self.prompt_engine.build_agent_header(
+                        self.prompt_style, is_natural=not bool(tool_calls)
+                    )
+                    self.console.print(header)
+
+                    # Thoughts (if enabled and present)
+                    thought = getattr(msg, "thought", None)
+                    if thought and self.show_thinking_details:
+                        for line in thought.strip().splitlines():
+                            self.console.print(f"  {icons.vbar} [dim]{line}[/]", style=self.C_THINK)
+
+                    # Body segments — guard against list content (multimodal)
+                    raw_content = msg.content if isinstance(msg.content, str) else ""
+                    if raw_content:
+                        segments = _parse_segments(raw_content)
+                        for seg in segments:
+                            if seg[0] == "text":
+                                try:
+                                    self.console.print(Markdown(seg[1]))
+                                except Exception:
+                                    self.console.print(seg[1])
+                            elif seg[0] == "code":
+                                self.console.print(
+                                    Syntax(
+                                        seg[2], seg[1],
+                                        theme=self.theme.code_theme,
+                                        line_numbers=True,
+                                        padding=(0, 1),
+                                    )
+                                )
+
+                    # Tool calls summary
+                    for tc in tool_calls:
+                        self.print_tool_call(tc.name, tc.arguments)
+
+                    self.console.print()
+
+                elif msg.role == Role.TOOL:
+                    tool_name = (msg.metadata or {}).get("tool_name", "tool")
+                    content_str = msg.content if isinstance(msg.content, str) else str(msg.content)
+                    self.print_tool_result(ok=True, content=content_str, tool_name=tool_name)
+
+            except Exception as exc:
+                _logger.debug(f"replay_history: skipping malformed message — {exc}")
+                continue
+
+        self.console.print(f"  [dim]{'─' * 50} resuming {'─' * 16}[/dim]\n")
+
     # ─────────────────────────────────────────────────────────────────
     # UI Elements
     # ─────────────────────────────────────────────────────────────────
@@ -700,15 +772,12 @@ class GemStyleRenderer:
         )
 
         # Add timestamp and optional metrics summary
-        divider = Text()
-        divider.append("\n  ")
-        divider.append(bar)
-        if metrics:
-            divider.append(f"  [dim]{icons.hdash} {metrics} {icons.dot} {now}[/dim]")
-        else:
-            divider.append(f"  [dim]{icons.hdash} {now}[/dim]")
+        now_str = time.strftime("%H:%M:%S")
+        suffix = f"  {icons.hdash} {metrics} {icons.dot} {now_str}" if metrics else f"  {icons.hdash} {now_str}"
 
-        self.console.print(divider)
+        self.console.print()
+        self.console.print(bar, end="")
+        self.console.print(f"[dim]{suffix}[/dim]")
         self.console.print()
 
     def print_command_output(self, result) -> None:
@@ -723,10 +792,41 @@ class GemStyleRenderer:
         self.console.print(f"\n  [{self.C_TOOL}]{icons.warn} Warning:[/]  {msg}")
 
     def print_status(self, msg: str) -> None:
+        """Prints a low-priority system status or notification."""
         # Avoid showing noisy turn numbers in persistent mode if they aren't useful
         if "Agent Turn" in msg:
             return
-        self.console.print(f"  [dim]{icons.dot} {msg}[/]")
+
+        # If it already has an icon (from CLIProvider beautification), print it clean
+        if msg.startswith("󰀦"):
+            self.console.print(f"  [dim]{msg}[/]")
+        else:
+            self.console.print(f"  [dim]{icons.dot} {msg}[/]")
+
+    async def confirm_action(self, message: str, detail: str | None = None, severity: str = "info") -> bool:
+        """Requests confirmation for a generic action (ToolUIAdapter protocol)."""
+        if self._live:
+            self._live.stop()
+            self._live = None
+
+        style = {"info": "blue", "warning": "yellow", "error": "red"}.get(severity, "blue")
+        icon = {"info": icons.ok, "warning": icons.warn, "error": icons.fail}.get(severity, icons.ok)
+
+        self.console.print(f"\n  [{style}]{icon} ACTION REQUIRED[/{style}]")
+        self.console.print(f"  {message}")
+        if detail:
+            self.console.print(f"  [dim]{detail}[/dim]")
+
+        # Use asyncio.to_thread for Confirm.ask because it's blocking
+        return await asyncio.to_thread(Confirm.ask, "\n  [bold]Proceed?[/]")
+
+    def log_status(self, message: str, level: str = "info") -> None:
+        """Logs a status update (ToolUIAdapter protocol)."""
+        self.print_status(message)
+
+    def stream_output(self, text: str) -> None:
+        """Sends partial output to the UI (ToolUIAdapter protocol)."""
+        self.update_stream(text)
 
     async def ask_confirmation(self, tool_name: str, args: dict[str, str], warning: str = "") -> bool:
         if self._live:

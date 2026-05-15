@@ -30,7 +30,7 @@ class SessionManager:
         self.model_name = model_name
         self.simulation = simulation
         self.recent_files: list[str] = []  # Track last 5 unique files accessed
-        self.metrics = None  # Will be assigned by ChatAgent or initialized later
+        self.metrics: Any | None = None  # Will be assigned by ChatAgent or initialized later
 
         # Initialize provider via factory
         self.provider = get_provider(model_name, config_manager)

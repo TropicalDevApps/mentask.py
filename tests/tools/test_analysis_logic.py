@@ -16,27 +16,27 @@ from mentask.tools.analysis_logic import (
 
 
 class TestGetGitDiffStat:
-    @patch("subprocess.run")
+    @patch("mentask.tools.analysis_logic.subprocess.run")
     def test_get_git_diff_stat_success(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout=" 1 file changed, 1 insertion(+)", stderr="")
         result = get_git_diff_stat()
         assert "1 file changed" in result
         mock_run.assert_called_once_with(["git", "diff", "--stat", "HEAD"], capture_output=True, text=True, check=False)
 
-    @patch("subprocess.run")
+    @patch("mentask.tools.analysis_logic.subprocess.run")
     def test_get_git_diff_stat_failure(self, mock_run):
         mock_run.return_value = MagicMock(returncode=1, stderr="Not a git repository")
         result = get_git_diff_stat()
         assert "Error: Git diff failed" in result
         assert "Not a git repository" in result
 
-    @patch("subprocess.run")
+    @patch("mentask.tools.analysis_logic.subprocess.run")
     def test_get_git_diff_stat_no_changes(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         result = get_git_diff_stat()
         assert "No changes detected" in result
 
-    @patch("subprocess.run")
+    @patch("mentask.tools.analysis_logic.subprocess.run")
     def test_get_git_diff_stat_exception(self, mock_run):
         mock_run.side_effect = Exception("Subprocess error")
         result = get_git_diff_stat()
@@ -44,7 +44,7 @@ class TestGetGitDiffStat:
 
 
 class TestGetRepoStructure:
-    @patch("subprocess.run")
+    @patch("mentask.tools.analysis_logic.subprocess.run")
     def test_get_repo_structure_git_success(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -58,7 +58,7 @@ class TestGetRepoStructure:
         # tool.py is at depth 2, should not be in result with max_depth=1
         assert "tool.py" not in result
 
-    @patch("subprocess.run")
+    @patch("mentask.tools.analysis_logic.subprocess.run")
     @patch("os.listdir")
     def test_get_repo_structure_fallback(self, mock_listdir, mock_run):
         mock_run.return_value = MagicMock(returncode=1)
@@ -68,12 +68,19 @@ class TestGetRepoStructure:
         assert "file1.txt" in result
         assert "dir1" in result
 
-    @patch("subprocess.run")
+    @patch("mentask.tools.analysis_logic.subprocess.run")
     def test_get_repo_structure_exception(self, mock_run):
         mock_run.side_effect = Exception("Unexpected error")
         result = get_repo_structure()
         assert "Error mapping repo: Unexpected error" in result
 
+    @patch("mentask.tools.analysis_logic.subprocess.run")
+    @patch("os.listdir")
+    def test_get_repo_structure_fallback_exception(self, mock_listdir, mock_run):
+        mock_run.return_value = MagicMock(returncode=1)
+        mock_listdir.side_effect = Exception("OS Listdir error")
+        result = get_repo_structure()
+        assert "Error mapping repo: OS Listdir error" in result
 
 class TestDetectProjectBlueprint:
     @patch("os.listdir")

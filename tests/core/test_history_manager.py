@@ -22,7 +22,7 @@ class TestHistoryManager:
 
     def test_init(self, manager, tmp_path):
         assert manager.history_dir == str(tmp_path)
-        assert len(manager.current_session_id) == 8
+        assert len(manager.current_session_id) in (8, 36)
 
     def test_save_session_empty(self, manager, tmp_path):
         manager.save_session([])

@@ -45,7 +45,10 @@ def manage_ollama():
     # Pre-pull the mandated model
     if is_ollama_running():
         _logger.info("Ensuring qwen3.5 is available...")
-        subprocess.run(["ollama", "pull", "qwen3.5"], capture_output=True)
+        try:
+            subprocess.run(["ollama", "pull", "qwen3.5"], capture_output=True, check=False)
+        except FileNotFoundError:
+            _logger.warning("Ollama binary not found in PATH. Cannot pre-pull models.")
 
     yield
 

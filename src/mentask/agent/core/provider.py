@@ -1,10 +1,11 @@
+import logging
 from collections.abc import AsyncGenerator
 from typing import Any, Union
-import logging
 
 from ..schema import AssistantMessage, Message
 
 _logger = logging.getLogger(__name__)
+
 
 class ProviderManager:
     """
@@ -30,10 +31,18 @@ class ProviderManager:
             async for chunk in self.client.generate_stream(history[:-1], tool_schemas, config=config):
                 try:
                     # Validate chunk structure
-                    if not isinstance(chunk, dict) or "type" not in chunk or "content" not in chunk:
+                    if not isinstance(chunk, dict):
+                        _logger.warning(f"Malformed chunk received (not a dict): {chunk}")
+                        continue
+
+                    if "status" in chunk:
+                        yield chunk
+                        continue
+
+                    if "type" not in chunk or "content" not in chunk:
                         _logger.warning(f"Malformed chunk received: {chunk}")
                         continue
-                    
+
                     chunk_type = chunk["type"]
                     chunk_content = chunk["content"]
 
@@ -47,17 +56,22 @@ class ProviderManager:
                         yield {"type": "thought", "content": chunk_content}
                     elif chunk_type == "tool_call":
                         assistant_msg.tool_calls.append(chunk_content)
+                        yield {"type": "tool_call", "content": chunk_content}
                     elif chunk_type == "metrics":
                         assistant_msg.usage = chunk_content
                         yield {"type": "metrics", "usage": chunk_content}
+                    elif chunk_type == "error":
+                        yield chunk
+                    elif chunk_type == "info":
+                        yield chunk
                     else:
                         _logger.warning(f"Unknown chunk type: {chunk_type}")
-                        
+
                 except Exception as chunk_error:
                     _logger.error(f"Error processing chunk: {chunk_error}")
                     # Continue processing other chunks even if one fails
                     continue
-                    
+
         except Exception as client_error:
             _logger.error(f"Client streaming error: {client_error}")
             # Yield error chunk to inform the caller

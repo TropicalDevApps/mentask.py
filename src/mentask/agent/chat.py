@@ -5,6 +5,7 @@ Manages the conversational loop, tool routing, and API interactions with the gen
 It does NOT manage filesystem paths or raw terminal rendering.
 """
 
+import asyncio
 import logging
 import os
 import sys
@@ -114,7 +115,9 @@ class ChatAgent:
                 self.model_name = "ollama:qwen3.5"
                 self.session = SessionManager(self.config, self.model_name)
 
-        self.session.metrics = getattr(self.session, "metrics", None) or TokenTracker(model_name=self.model_name)
+        self.session.metrics = getattr(self.session, "metrics", None)
+        if self.session.metrics is None:
+            self.session.metrics = TokenTracker(model_name=self.model_name)
         self.metrics = self.session.metrics
         self.context = deps.context
         self.commands = CommandHandler(self)
@@ -137,6 +140,7 @@ class ChatAgent:
         # Turn metrics tracking
         self.turn_tokens_prompt = 0
         self.turn_tokens_candidate = 0
+        self.is_new_session = True
 
         # Autocompletion
         self._completer = None
@@ -207,6 +211,9 @@ class ChatAgent:
         registry.register(SubagentTool(self.session, registry, self.config))
         registry.register(EnterWorktreeTool())
         registry.register(ExitWorktreeTool())
+        
+        from .tools.git_tools import GitCommitTool
+        registry.register(GitCommitTool())
 
         if self.config.settings.get("web_search_enabled", True):
             registry.register(WebSearchTool(self.config))
@@ -238,13 +245,16 @@ class ChatAgent:
         temp = self.config.settings.get("temperature", 0.7)
 
         # Only include blueprint on the very first turn to save tokens
-        is_first_turn = self.session_messages == 0
-        full_instruction = f"{self.system_prompt}\n\n{self.context.build_system_instruction(include_blueprint=is_first_turn, relevant_memory=relevant_memory)}"
+        # For CLI Bridge: first turn of a NEW session needs --session-id, otherwise --resume
+        is_first_turn = self.is_new_session and self.session_messages == 1
+        full_instruction = f"{self.system_prompt}\n\n{self.context.build_system_instruction(include_blueprint=self.session_messages <= 1, relevant_memory=relevant_memory)}"
 
         return {
             "temperature": temp,
             "tools": schemas,
             "system_instruction": full_instruction,
+            "session_id": self.history.current_session_id,
+            "is_first_turn": is_first_turn,
         }
 
     async def setup_api(self, interactive: bool = True) -> bool:
@@ -371,6 +381,11 @@ class ChatAgent:
             renderer.print_error(event["content"])
             return
 
+        if event_type == "info":
+            renderer.stop_thinking()
+            renderer.print_status(event["content"])
+            return
+
     def _maybe_initialize_workspace(self, confirm_ask: Callable[..., bool]) -> None:
         local_ws = Path.cwd() / ".mentask"
         global_config_dir = Path.home() / ".mentask"
@@ -447,6 +462,24 @@ class ChatAgent:
 
         if history_data:
             self.messages.extend([message for message in history_data if message.role != Role.SYSTEM])
+            # Restore model from last AssistantMessage if available
+            from .schema import AssistantMessage
+            for msg in reversed(history_data):
+                if isinstance(msg, AssistantMessage) and getattr(msg, "model", ""):
+                    saved_model = msg.model
+                    _logger.info(f"Session resume: restoring model '{saved_model}'")
+                    self.model_name = saved_model
+                    self.config.settings["model_name"] = saved_model
+                    break
+            else:
+                # Fallback: check metadata on regular messages
+                for msg in reversed(history_data):
+                    m = (msg.metadata or {}).get("session_model")
+                    if m:
+                        self.model_name = m
+                        self.config.settings["model_name"] = m
+                        _logger.info(f"Session resume: restoring model from metadata '{m}'")
+                        break
 
         return sessions, history_data, is_new
 
@@ -583,7 +616,9 @@ class ChatAgent:
             # Update status bar data before each turn
             cost = self.metrics.calculate_cost(self.metrics.total_prompt_tokens, self.metrics.total_candidate_tokens)
             renderer.update_status_bar(
-                tokens=self.metrics.total_prompt_tokens + self.metrics.total_candidate_tokens, cost=cost
+                model=self.model_name,
+                tokens=self.metrics.total_prompt_tokens + self.metrics.total_candidate_tokens,
+                cost=cost,
             )
 
             # Unify status bar and divider into one call
@@ -610,56 +645,99 @@ class ChatAgent:
         await self.mcp.shutdown()
 
     async def _update_completer(self):
-        """Dynamically updates the autocompletion NestedCompleter."""
+        """Dynamically updates the autocompletion NestedCompleter with all model sources."""
         from prompt_toolkit.completion import NestedCompleter
 
         from ..cli import themes
+        from ..core.model_discovery import (
+            discover_cli_models,
+            discover_ollama_models,
+            get_installed_cli_binaries,
+        )
+        from ..core.models_hub import hub
 
-        # 1. Build basic completion map
+        # 1. Slash commands
         completion_dict: dict[str, Any] = {}
         for cmd in self.commands.get_all_commands():
             completion_dict[cmd] = None
 
-        # 2. Add sub-commands
+        # 2. Command sub-options
         completion_dict["/theme"] = {t: None for t in themes.THEMES}
         completion_dict["/mode"] = {"auto": None, "manual": None}
         completion_dict["/multiline"] = {"true": None, "false": None}
         completion_dict["/readonly"] = {"true": None, "false": None}
         completion_dict["/usage"] = {"--reset": None, "-r": None}
         completion_dict["/stream"] = {"transient": None, "continuous": None}
+        completion_dict["/thinking"] = {"true": None, "false": None}
+        completion_dict["/history"] = {"--clear": None, "--list": None, "--export": None}
+        completion_dict["/undo"] = None
+        completion_dict["/load"] = None
 
         # 3. Dynamic prompt styles
         if hasattr(self, "active_renderer") and hasattr(self.active_renderer, "prompt_engine"):
             styles = {s: None for s in self.active_renderer.prompt_engine.STYLES}
-            completion_dict["/prompt"] = {"--theme": styles, "--nerdfonts": {"on": None, "off": None}}
+            completion_dict["/prompt"] = {
+                "--theme": styles,
+                "--nerdfonts": {"on": None, "off": None},
+                "--style": styles,
+            }
 
-        # 4. Dynamic model fetching
+        # 4. Model options — multi-source, structured by prefix
+        model_options: dict[str, Any] = {}
+
         try:
-            models = await self.session.list_models()
-            health_data = getattr(self, "model_health", {})
+            # 4a. Cloud models from models.dev (via hub)
+            hub.sync_local()
+            for m_id, m_info in hub._flat_models.items():
+                p_id = m_info.get("_provider", {}).get("id", "")
+                if self.local_mode and p_id not in ("ollama", "cli"):
+                    continue
+                if ":" in m_id:
+                    continue  # skip hub-generated scoped dupes; we build our own
+                model_options[m_id] = None
 
-            if models:
-                model_options: dict[str, Any] = {}
-                for m in models:
-                    is_ok, error = health_data.get(m, (True, None))
-                    if is_ok:
-                        model_options[m] = None
-                    else:
-                        display_name = f"{m} ({error})"
-                        model_options[display_name] = None
+            # Add provider-scoped cloud entries (e.g. 'google:gemini-2.5-pro')
+            for p_id, p_info in (hub._data_store or {}).items():
+                if not isinstance(p_info, dict):
+                    continue
+                for m_id in p_info.get("models", {}):
+                    if not self.local_mode:
+                        model_options[f"{p_id}:{m_id}"] = None
+        except Exception as e:
+            _logger.debug(f"Completer: cloud model sync failed: {e}")
 
-                completion_dict["/model"] = model_options
-            else:
-                completion_dict["/model"] = {self.model_name: None}
-        except Exception:
-            completion_dict["/model"] = {self.model_name: None}
+        try:
+            # 4b. Ollama local models → 'ollama:<model>'
+            ollama_models = await asyncio.to_thread(discover_ollama_models)
+            for m in ollama_models:
+                model_options[f"ollama:{m}"] = None
+                model_options[m] = None
+        except Exception as e:
+            _logger.debug(f"Completer: Ollama sync failed: {e}")
 
-        # 5. Update the completer object
+        try:
+            # 4c. External CLI binaries → '<binary>:<model>'
+            installed_clis = await asyncio.to_thread(get_installed_cli_binaries)
+            for cli_key in installed_clis:
+                cli_models = await asyncio.to_thread(discover_cli_models, cli_key)
+                if cli_models:
+                    for m in cli_models:
+                        model_options[f"{cli_key}:{m}"] = None
+                else:
+                    # At minimum expose the CLI itself
+                    model_options[cli_key] = None
+        except Exception as e:
+            _logger.debug(f"Completer: CLI discovery failed: {e}")
+
+        completion_dict["/model"] = model_options if model_options else {self.model_name: None}
+
+        # 5. Build and install the completer
         new_completer = NestedCompleter.from_nested_dict(completion_dict)
         if self._completer:
             self._completer.options = new_completer.options
         else:
             self._completer = new_completer
+
 
         return self._completer
 
@@ -704,7 +782,14 @@ class ChatAgent:
         await self.initialize_mcp()
 
         self.running = True
+        original_model = self.model_name
         sessions, history_data, is_new_session = self._restore_last_session()
+        self.is_new_session = is_new_session
+
+        # If session resume changed the model, re-init the provider with the restored model
+        if not is_new_session and self.model_name != original_model:
+            _logger.info(f"Re-initializing provider for restored model: {self.model_name}")
+            await self.session.switch_model(self.model_name)
 
         await self.session.ensure_session(self._build_config(), history=None)
         await self.orchestrator.executor.initialize()
@@ -717,6 +802,8 @@ class ChatAgent:
             renderer.print_warning(
                 f"Resumed session: [bold]{res_id}[/bold] ({len(history_data) if history_data else 0} turns)"
             )
+            if history_data:
+                renderer.replay_history(history_data)
         else:
             renderer.print_warning(f"New session: [bold]{self.history.current_session_id}[/bold]")
 
@@ -787,6 +874,7 @@ class ChatAgent:
                     with patch_stdout():
                         try:
                             is_multiline = self.config.settings.get("multiline_prompt", False)
+                            # We use an empty string as prompt if the style already rendered a second line arrow
                             user_input = (await session.prompt_async(prompt_msg, multiline=is_multiline)).strip()
                         except (EOFError, KeyboardInterrupt):
                             break
