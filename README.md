@@ -70,6 +70,7 @@ mentask
 ```
 
 On first run, you'll be prompted for your API key. mentask stores all provider keys securely in your OS's native secret service via `keyring`:
+
 - **macOS:** Keychain
 - **Linux:** SecretService (KWallet, Gnome Keyring)
 - **Windows:** Credential Manager
@@ -89,6 +90,7 @@ mentask
 ## Why mentask Exists
 
 Let's be brutally honest. 90% of "AI agents" in the wild are glorified chat wrappers:
+
 1. You paste an error
 2. The AI hallucinates a function
 3. You copy-paste it back
@@ -305,6 +307,7 @@ We don't hide our guts. Here's exactly what runs when you launch mentask:
 ### Workflow 1: Autonomous Multi-File Refactoring
 
 You have 30 TypeScript files with inconsistent error handling. You want to:
+
 1. Identify all `try-catch` blocks
 2. Replace them with a custom error handler
 3. Run the linter to verify syntax
@@ -317,6 +320,7 @@ Instead of running 30 separate CLI commands, you give mentask the task once:
 ```
 
 mentask will:
+
 - Scan the files via AST analysis
 - Detect patterns and dependencies
 - Forge a `RefactorTool` to apply changes in batch
@@ -345,6 +349,7 @@ You realize mentask needs a tool to batch-convert audio files using FFmpeg. You 
 ```
 
 mentask will:
+
 1. Generate the `BaseTool` subclass with proper Pydantic schemas
 2. Validate the AST before writing to disk
 3. Save it to `.mentask/plugins/`
@@ -428,6 +433,7 @@ We hate bloat. mentask enforces an extremely strict minimal dependency tree. No 
 | `python-dotenv` | ^1.0.0 | Load `.env` files at startup. | Yes | Can be replaced with manual `os.getenv()` calls. Optional for advanced users. |
 
 **No extra dependencies for:**
+
 - Web frameworks (no FastAPI/Flask)
 - ORMs (no SQLAlchemy/Tortoise)
 - Async libraries (uses stdlib `asyncio`)
@@ -547,6 +553,7 @@ Licensed under the **MIT License**. See `LICENSE` file for details.
 Built with ❤️, excessive caffeine, and a deep hatred for manual refactoring by [julesklord](https://github.com/julesklord).
 
 If mentask saves you hours of boring work, consider:
+
 - ⭐ Starring the repo (costs nothing, means everything)
 - 🍻 Buying the author a beer (if you meet in person)
 - 🐛 Reporting bugs and edge cases (helps everyone)
@@ -556,5 +563,5 @@ If mentask saves you hours of boring work, consider:
 
 **Last updated:** May 2026
 **Status:** Actively maintained
-**Python support:** 3.10–3.14
-**API Providers:** Gemini 2.0/2.5, Claude 3.5 Sonnet, DeepSeek V3, Ollama (qwen3.5 standard)
+**Python support:** 3.11–3.14 (3.10 tested and works, but future versions may break compatibility)
+**API Providers:** Gemini 3 (Flash/Flash Lite/Pro), Claude 4.5 Sonnet, DeepSeek V3, Ollama (qwen3.6-codegemma:8b)
